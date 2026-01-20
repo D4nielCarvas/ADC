@@ -305,6 +305,10 @@ class LimpadorPlanilhaGUI:
         self.btn_processar_limpeza = ttk.Button(self.container_limpeza, text="🚀 INICIAR LIMPEZA", command=self.iniciar_processamento, style="Accent.TButton")
         self.btn_processar_limpeza.pack(fill=tk.X, pady=20)
 
+        # Container para os gráficos do Dashboard na Limpeza
+        self.dash_container_limpeza = ttk.Frame(self.container_limpeza, style="Card.TFrame")
+        self.dash_container_limpeza.pack(fill=tk.BOTH, expand=True)
+
         self.montar_log(self.container_limpeza)
 
     def montar_pagina_resumo(self):
@@ -688,6 +692,20 @@ class LimpadorPlanilhaGUI:
             self.set_progress(70, "Aplicando filtros...")
             df_limpo = self.aplicar_filtros_adicionais(df)
             
+            # OTIMIZAÇÃO: Preparar dados para Dashboard se for o preset de Mais Vendidos
+            if "Mais Vendidos" in preset_atual.get("nome", ""):
+                 try:
+                     col_quantidade = 25 # Z
+                     def clean_numeric(val):
+                         if pd.isna(val): return 0.0
+                         if isinstance(val, (int, float)): return float(val)
+                         s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
+                         try: return float(s)
+                         except: return 0.0
+                     df_limpo['qty_clean'] = df_limpo.iloc[:, col_quantidade].apply(clean_numeric)
+                     self.exibir_dashboard(df_limpo, container=self.dash_container_limpeza)
+                 except: pass
+
             # Passo 7: Salvar
             self.set_progress(90, "Salvando arquivo...")
             self.salvar_planilha(df_limpo, caminho_saida)
@@ -1005,16 +1023,20 @@ class LimpadorPlanilhaGUI:
             self.log(f"❌ Erro no resumo: {e}")
             raise e
 
-    def exibir_dashboard(self, df, total_itens=0, pedidos_unicos=0, valor_total=0):
+    def exibir_dashboard(self, df, total_itens=0, pedidos_unicos=0, valor_total=0, container=None):
         """Gera gráficos usando matplotlib e integra ao tkinter"""
+        target_container = container if container else self.dash_container
+        
         def atualizar_gui():
-            # Atualizar Labels dos Cards
-            self.lbl_stat_itens.config(text=f"{total_itens:,}".replace(",", "."))
-            self.lbl_stat_pedidos.config(text=f"{pedidos_unicos:,}".replace(",", "."))
-            self.lbl_stat_valor.config(text=f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+            # Atualizar Labels dos Cards (apenas se estivermos no resumo)
+            if target_container == self.dash_container:
+                self.lbl_stat_itens.config(text=f"{total_itens:,}".replace(",", "."))
+                self.lbl_stat_pedidos.config(text=f"{pedidos_unicos:,}".replace(",", "."))
+                self.lbl_stat_valor.config(text=f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
-            if self.dashboard_canvas:
-                self.dashboard_canvas.get_tk_widget().destroy()
+            # Limpar gráficos anteriores no container específico
+            for widget in target_container.winfo_children():
+                widget.destroy()
             
             plt.rcParams['text.color'] = '#cdd6f4'
             plt.rcParams['axes.labelcolor'] = '#cdd6f4'
@@ -1026,21 +1048,22 @@ class LimpadorPlanilhaGUI:
             ax.set_facecolor('#313244')
             
             try:
-                # Agrupa Top 10 por Quantidade
-                if len(df.columns) > 2:
-                    nome_col = df.columns[2]
-                    top_10 = df.groupby(nome_col)['qty_clean'].sum().nlargest(10)
-                else:
-                    top_10 = df['qty_clean'].nlargest(10)
-
-                top_10.plot(kind='barh', ax=ax, color='#89b4fa')
-                ax.set_title("Top 10 Itens (Qtd)", color='#89b4fa', weight='bold')
-                ax.invert_yaxis()
-                plt.tight_layout()
+                # Determina coluna de nome (geralmente a primeira após limpeza ou a 3ª na original)
+                # Na limpeza o SKU costuma ser mantido. Vamos tentar inferir.
+                col_nome = df.columns[0]
+                if 'SKU' in df.columns: col_nome = 'SKU'
+                elif 'Produto' in df.columns: col_nome = 'Produto'
                 
-                self.dashboard_canvas = FigureCanvasTkAgg(fig, master=self.dash_container)
-                self.dashboard_canvas.draw()
-                self.dashboard_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                if 'qty_clean' in df.columns:
+                    top_10 = df.groupby(col_nome)['qty_clean'].sum().nlargest(10)
+                    top_10.plot(kind='barh', ax=ax, color='#89b4fa')
+                    ax.set_title("Top 10 Itens por Qtd", color='#89b4fa', weight='bold')
+                    ax.invert_yaxis()
+                    plt.tight_layout()
+                    
+                    canvas = FigureCanvasTkAgg(fig, master=target_container)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
             except Exception as e:
                 self.log(f"⚠️ Erro no gráfico: {e}")
 
