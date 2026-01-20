@@ -38,6 +38,8 @@ class LimpadorPlanilhaGUI:
         self.dashboard_canvas = None # Guardar referência do gráfico
         self.is_fullscreen = False # INICIALIZAÇÃO CORRIGIDA
         self.df_resultado = None  # Armazena resultado processado
+        self.log_limpeza = None   # Buffer para log de limpeza
+        self.log_resumo = None    # Buffer para log de resumo
         
         # Novas Variáveis Multi-Relatório
         self.presets = self.carregar_presets()
@@ -311,7 +313,7 @@ class LimpadorPlanilhaGUI:
         # self.btn_salvar_limpeza.pack_forget() # Oculto
 
         # Log com tamanho fixo para não sumir (AGORA ACIMA DO DASHBOARD)
-        self.montar_log(self.container_limpeza)
+        self.log_limpeza = self.montar_log(self.container_limpeza)
 
         # Container para os gráficos do Dashboard na Limpeza
         self.dash_container_limpeza = ttk.Frame(self.container_limpeza, style="Card.TFrame")
@@ -377,7 +379,7 @@ class LimpadorPlanilhaGUI:
         self.dash_container = ttk.Frame(self.container_resumo, style="Card.TFrame")
         self.dash_container.pack(fill=tk.BOTH, expand=True)
 
-        self.montar_log(self.container_resumo)
+        self.log_resumo = self.montar_log(self.container_resumo)
 
     def montar_pagina_config(self):
         """Página de Configurações (Editor de Presets)"""
@@ -458,15 +460,16 @@ class LimpadorPlanilhaGUI:
     def montar_log(self, parent):
         log_frame = ttk.Frame(parent)
         log_frame.pack(fill=tk.BOTH, expand=True)
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=5, font=("Consolas", 10), bg="#11111b", fg="#a6e3a1", borderwidth=0, padx=10, pady=10)
-        self.log_text.pack(fill=tk.BOTH, expand=False, pady=5)
+        widget = scrolledtext.ScrolledText(log_frame, height=5, font=("Consolas", 10), bg="#11111b", fg="#a6e3a1", borderwidth=0, padx=10, pady=10)
+        widget.pack(fill=tk.BOTH, expand=False, pady=5)
+        return widget
 
     def toggle_fullscreen(self):
         """Alternar entre modo tela cheia e janela"""
         self.is_fullscreen = not self.is_fullscreen
         self.root.attributes("-fullscreen", self.is_fullscreen)
         if not self.is_fullscreen:
-            self.root.geometry("800x850")
+            self.root.geometry("1000x850") # Sincronizado com o __init__
         
     def aplicar_preset(self, event=None):
         """Aplicar as configurações do preset selecionado"""
@@ -595,17 +598,24 @@ class LimpadorPlanilhaGUI:
         self.root.after(0, atualizar)
 
     def log(self, mensagem):
-        """Adicionar mensagem ao log visual de forma segura para threads"""
+        """Adicionar mensagem ao log visual da página ativa"""
         def atualizar():
-            if hasattr(self, 'log_text'):
-                self.log_text.insert(tk.END, mensagem + "\n")
-                self.log_text.see(tk.END)
+            alvo = None
+            if self.pagina_atual == "limpeza":
+                alvo = self.log_limpeza
+            elif self.pagina_atual == "resumo":
+                alvo = self.log_resumo
+                
+            if alvo:
+                alvo.insert(tk.END, mensagem + "\n")
+                alvo.see(tk.END)
         self.root.after(0, atualizar)
     
     def limpar_log(self):
-        """Limpar área de log"""
-        if hasattr(self, 'log_text'):
-            self.log_text.delete(1.0, tk.END)
+        """Limpar área de log da página ativa"""
+        alvo = self.log_limpeza if self.pagina_atual == "limpeza" else self.log_resumo
+        if alvo:
+            alvo.delete(1.0, tk.END)
     
     def iniciar_processamento(self):
         """Iniciar processamento em thread separada para não travar a GUI"""
@@ -1106,10 +1116,37 @@ class LimpadorPlanilhaGUI:
                     canvas = FigureCanvasTkAgg(fig, master=target_container)
                     canvas.draw()
                     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+                    # Botão EXPANDIR PREMIUM
+                    btn_expand = ttk.Button(target_container, text="🔍 EXPANDIR DASHBOARD", command=lambda f=fig: self.expandir_dashboard(f), style="Secondary.TButton")
+                    btn_expand.pack(pady=5)
             except Exception as e:
                 self.log(f"⚠️ Erro no gráfico: {e}")
 
         self.root.after(0, atualizar_gui)
+
+    def expandir_dashboard(self, fig_orig):
+        """Abre o gráfico em uma nova janela em tela cheia"""
+        top = tk.Toplevel(self.root)
+        top.title("Dashboard Expandido - ADC Pro")
+        top.attributes("-fullscreen", True)
+        top.configure(bg="#1e1e2e")
+        
+        # Container
+        frame = ttk.Frame(top, style="TFrame", padding=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Recriar a figura para a nova janela (evita conflitos de canvas)
+        canvas = FigureCanvasTkAgg(fig_orig, master=frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        # Botões de controle flutuantes
+        btn_close = ttk.Button(top, text="[ ESC ] FECHAR", command=top.destroy, style="Accent.TButton")
+        btn_close.place(relx=0.95, rely=0.05, anchor="ne")
+        
+        top.bind("<Escape>", lambda e: top.destroy())
+        top.focus_set()
 
 
 def main():
