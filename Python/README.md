@@ -1,55 +1,62 @@
-[README.md](https://github.com/user-attachments/files/24742250/README.md)
-# 🧹 ADC
+# 🧹 ADC - Advanced Data Cleaner
 
-Aplicação profissional com Interface Gráfica (GUI) para limpeza e filtragem de planilhas de produtos (Itens Mais Vendidos por SKU).
+Aplicação profissional com Interface Gráfica (GUI) para limpeza, filtragem e análise de planilhas de produtos (**Itens Mais Vendidos por SKU**).
 
-## 🚀 Funcionalidades
+![Versão](https://img.shields.io/badge/Vers%C3%A3o-2.5%20Pro-blue)
+![Python](https://img.shields.io/badge/Python-3.8%2B-green)
 
-- **Multicamadas e Presets**: Suporte dinâmico para diferentes tipos de relatórios via `config.json`.
-- **Navegação Inteligente**: Nova barra lateral para alternar entre os modos de **Limpeza** e **Resumo**.
-- **Resumo de Pedidos**: Nova funcionalidade que calcula total de itens, pedidos e valor sem gerar arquivos.
-- **Indexação Humana (A=1)**: Sistema de colunas intuitivo que segue o padrão do Excel (Coluna A = 1, Coluna B = 2).
-- **Tratamento de Arquivos Legados**: Suporte robusto para leitura de arquivos `.xls` com cabeçalhos inconsistentes.
-- **Interface Pro**: Design modernizado com Modo Escuro, cards e suporte a Tela Cheia (F11).
+## 🚀 Funcionalidades Principais
+
+- **🧹 Limpeza Inteligente**: Remova colunas desnecessárias, normalize dados e elimine duplicatas em segundos.
+- **📊 Dashboard de Pedidos**: Visualize instantaneamente o total de itens, pedidos e valor financeiro através do Modo Resumo com gráficos interativos.
+- **⚙️ Editor de Presets**: Crie e salve perfis de limpeza personalizados para diferentes tipos de relatórios via interface gráfica.
+- **📁 Suporte Universal**: Leitura robusta de arquivos `.xlsx` e `.xls` (mesmo com cabeçalhos inconsistentes ou corrompidos).
+- **✨ Interface Premium**: Design moderno em Modo Escuro, animações suaves e suporte a Tela Cheia (F11).
+- **🗂️ Indexação Humana**: Sistema de colunas seguindo o padrão Excel (Coluna A = 1, Coluna B = 2).
 
 ## 📁 Estrutura do Projeto
 
 ```text
 ADC/
-├── docs/           # Documentação adicional
-├── scripts/        # Scripts de automação (.bat)
-├── src/            # Código-fonte Python
-│   └── main.py     # Script principal da aplicação
-├── tests/          # Scripts de teste e validação
-├── README.md       # Documentação principal
-└── .gitignore      # Arquivos ignorados pelo Git
+├── scripts/            # Automação e builds (.bat)
+├── src/                # Código-fonte Python
+│   ├── main.py         # Arquivo principal (GUI)
+│   └── config.json     # Definições de Presets
+├── CHANGELOG.md        # Histórico de versões
+└── README.md           # Esta documentação
 ```
 
-## 🛠️ Requisitos
+## 🛠️ Requisitos e Instalação
 
-- **Python 3.8+**
-- Dependências: `pandas`, `openpyxl`, `xlrd`, `tkinter` (incluído no Python)
+### Pré-requisitos
+- Python 3.8 ou superior.
+
+### Instalação das Dependências
+```bash
+pip install pandas openpyxl xlrd matplotlib
+```
 
 ## 💻 Como Usar
 
-### Usando o Executável (Windows)
-1. Vá até a pasta `dist/`.
-2. Execute o arquivo `LimpadorPlanilha.exe`.
+### 1. Execução via Python
+Basta rodar o script principal localizado na pasta `src/`:
+```bash
+python src/main.py
+```
 
-### Executando via Python
-1. Instale as dependências:
-   ```bash
-   pip install pandas openpyxl
-   ```
-2. Execute o script principal:
-   ```bash
-   python src/main.py
-   ```
+### 2. Modos de Operação
+- **Modo Limpeza**: Selecione o arquivo, o destino e o preset desejado. Clique em "Iniciar Limpeza" para gerar a nova planilha.
+- **Modo Resumo**: Analise métricas financeiras e de volume sem a necessidade de criar arquivos intermediários.
+- **Configurações**: Gerencie seus presets, adicionando ou removendo regras de colunas para deletar.
 
-## 🔨 Desenvolvimento
+## 🔨 Desenvolvimento e Build
 
-Para gerar um novo executável, utilize o script na pasta `scripts/`:
-- `scripts/atualizar_executavel.bat`: Instala todas as dependências necessárias listadas em `requirements.txt`.
+Para gerar uma versão executável (`.exe`) para Windows:
+1. Certifique-se de ter o `pyinstaller` instalado.
+2. Utilize o script em `scripts/atualizar_executavel.bat` ou execute:
+```bash
+pyinstaller main.spec
+```
 
 ---
-Desenvolvido para otimizar o fluxo de trabalho com planilhas de SKU.
+Desenvolvido por **D4nielCarvas** para otimização de fluxos de E-commerce.

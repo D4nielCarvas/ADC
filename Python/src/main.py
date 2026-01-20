@@ -25,7 +25,7 @@ class LimpadorPlanilhaGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("ADC v2.1 Pro")
+        self.root.title("ADC v2.5 Pro")
         self.root.geometry("1000x850") # Aumentado para acomodar a sidebar
         self.root.configure(bg="#1e1e2e")
         
@@ -452,23 +452,27 @@ class LimpadorPlanilhaGUI:
         arquivo = self.caminho_entrada.get()
         aba = self.aba_selecionada.get()
         
-        if arquivo and aba:
-            try:
-                # Carrega apenas o cabeçalho para ser rápido
-                df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0)
-                self.lista_colunas = list(df_temp.columns)
-                self.coluna_combo['values'] = self.lista_colunas
-                
-                # Tenta pré-selecionar a última coluna numérica
-                df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5)
-                cols_num = df_exemplo.select_dtypes(include=['number']).columns
-                if len(cols_num) > 0:
-                    self.coluna_valor_selecionada.set(cols_num[-1])
-                elif self.lista_colunas:
-                    self.coluna_valor_selecionada.set(self.lista_colunas[-1])
-                
-            except Exception as e:
-                self.log(f"⚠ Erro ao ler colunas da aba: {e}")
+        try:
+            # Carrega apenas o cabeçalho para ser rápido
+            if arquivo.lower().endswith('.xls'):
+                df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='xlrd')
+                df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='xlrd')
+            else:
+                df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='openpyxl')
+                df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='openpyxl')
+            
+            self.lista_colunas = list(df_temp.columns)
+            self.coluna_combo['values'] = self.lista_colunas
+            
+            # Tenta pré-selecionar a última coluna numérica
+            cols_num = df_exemplo.select_dtypes(include=['number']).columns
+            if len(cols_num) > 0:
+                self.coluna_valor_selecionada.set(cols_num[-1])
+            elif self.lista_colunas:
+                self.coluna_valor_selecionada.set(self.lista_colunas[-1])
+            
+        except Exception as e:
+            self.log(f"⚠ Erro ao ler colunas da aba: {e}")
 
     def selecionar_arquivo_entrada(self):
         """Abrir diálogo para selecionar arquivo e carregar abas"""
@@ -491,7 +495,7 @@ class LimpadorPlanilhaGUI:
                     if arquivo.lower().endswith('.xls'):
                         excel_file = pd.ExcelFile(arquivo, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
                     else:
-                        excel_file = pd.ExcelFile(arquivo)
+                        excel_file = pd.ExcelFile(arquivo, engine='openpyxl')
                     self.cache_excel[arquivo] = excel_file
                 
                 self.lista_abas = excel_file.sheet_names
@@ -710,7 +714,7 @@ class LimpadorPlanilhaGUI:
                 # Motor xlrd com flag para ignorar corrupções leves de cabeçalho
                 df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
             else:
-                df = pd.read_excel(caminho, sheet_name=aba)
+                df = pd.read_excel(caminho, sheet_name=aba, engine='openpyxl')
                 
             self.log(f"✓ Planilha carregada: {len(df)} linhas, {len(df.columns)} colunas")
             return df
