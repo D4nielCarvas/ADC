@@ -1092,9 +1092,9 @@ class LimpadorPlanilhaGUI:
                 
                 if 'qty_clean' in df.columns:
                     # 2. Agrupamento e Ordenação Robusta (Top 10 real)
-                    # Limpar nomes para evitar duplicatas por espaços
+                    # Normalização profunda: strip e upper para evitar duplicatas por caixa
                     df_plot = df.copy()
-                    df_plot[col_nome] = df_plot[col_nome].astype(str).str.strip()
+                    df_plot[col_nome] = df_plot[col_nome].astype(str).str.strip().str.upper()
                     
                     top_10 = df_plot.groupby(col_nome)['qty_clean'].sum().sort_values(ascending=False).head(10)
                     
