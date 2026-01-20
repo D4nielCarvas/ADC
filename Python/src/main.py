@@ -689,23 +689,19 @@ class LimpadorPlanilhaGUI:
             self.log("\n1️⃣ Validando arquivo de entrada...")
             self.validar_arquivo_entrada(caminho_entrada)
             
-            # Passo 2: Criar backup
-            self.log("\n2️⃣ Criando backup do arquivo original...")
-            self.criar_backup(caminho_entrada)
-            
-            # Passo 3: Carregar planilha
+            # Passo 2: Carregar planilha
             self.set_progress(10, "Lendo planilha...")
             df = self.carregar_planilha(caminho_entrada)
             
-            # Passo 4: Validar índices
+            # Passo 3: Validar índices
             self.set_progress(30, "Validando colunas...")
             self.validar_indices_colunas(df, index_delet)
             
-            # Passo 5: Deletar colunas
+            # Passo 4: Deletar colunas
             self.set_progress(50, "Limpando dados...")
             df = self.deletar_colunas(df, index_delet)
             
-            # Passo 6: Aplicar Filtros Adicionais
+            # Passo 5: Aplicar Filtros Adicionais
             self.set_progress(70, "Aplicando filtros...")
             df_limpo = self.aplicar_filtros_adicionais(df)
             self.df_resultado = df_limpo # ARMAZENA PARA SALVAMENTO POSTERIOR
@@ -792,20 +788,6 @@ class LimpadorPlanilhaGUI:
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao salvar: {e}")
     
-    def criar_backup(self, caminho_arquivo):
-        """Criar backup do arquivo original"""
-        try:
-            if os.path.exists(caminho_arquivo):
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                nome_base, extensao = os.path.splitext(caminho_arquivo)
-                caminho_backup = f"{nome_base}_backup_{timestamp}{extensao}"
-                
-                shutil.copy2(caminho_arquivo, caminho_backup)
-                self.log(f"✓ Backup criado: {os.path.basename(caminho_backup)}")
-                return caminho_backup
-        except Exception as e:
-            self.log(f"⚠ Aviso: Não foi possível criar backup: {e}")
-        return None
     
     def validar_arquivo_entrada(self, caminho):
         """Validar se o arquivo de entrada existe"""
