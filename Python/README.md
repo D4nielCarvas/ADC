@@ -5,14 +5,12 @@ Aplicação profissional com Interface Gráfica (GUI) para limpeza e filtragem d
 
 ## 🚀 Funcionalidades
 
-- **Limpeza Automática**: Remove colunas desnecessárias com base em índices configuráveis.
-- **Filtros Avançados**:
-    - 🔄 Remoção de linhas duplicadas.
-    - 🗑️ Remoção de linhas vazias ou incompletas.
-    - 📊 Filtragem por valor mínimo (vendas/quantidade).
-    - 🔍 Filtragem por texto parcial (SKU/Categoria).
-- **Interface Intuitiva**: Seleção visual de arquivos e log de processamento em tempo real.
-- **Segurança**: Criação automática de backup do arquivo original antes do processamento.
+- **Multicamadas e Presets**: Suporte dinâmico para diferentes tipos de relatórios via `config.json`.
+- **Indexação Humana (A=1)**: Sistema de colunas intuitivo que segue o padrão do Excel (Coluna A = 1, Coluna B = 2).
+- **Seleção de Abas**: Escolha qual aba (sheet) do Excel deseja processar diretamente na interface.
+- **Controle de Saída Manual**: Total liberdade para escolher o nome e o local de salvamento dos arquivos.
+- **Interface Premium**: Design modernizado com Modo Escuro, cards e suporte a Tela Cheia (F11).
+- **Filtros Flexíveis**: Começam desmarcados para garantir que você só aplique o que realmente deseja.
 
 ## 📁 Estrutura do Projeto
 
@@ -51,7 +49,7 @@ ADC/
 ## 🔨 Desenvolvimento
 
 Para gerar um novo executável, utilize o script na pasta `scripts/`:
-- `scripts/atualizar_executavel.bat`: Gera uma nova versão do executável na pasta `dist/`.
+- `scripts/atualizar_executavel.bat`: Gera uma nova versão do executável na pasta `dist/` (inclui o `config.json`).
 
 ---
 Desenvolvido para otimizar o fluxo de trabalho com planilhas de SKU.
