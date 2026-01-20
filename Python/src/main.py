@@ -312,12 +312,8 @@ class LimpadorPlanilhaGUI:
         self.btn_salvar_limpeza = ttk.Button(self.container_limpeza, text="💾 SALVAR PLANILHA LIMPA", command=self.salvar_resultado_processado, style="Secondary.TButton")
         # self.btn_salvar_limpeza.pack_forget() # Oculto
 
-        # Log com tamanho fixo para não sumir (AGORA ACIMA DO DASHBOARD)
+        # Log que ocupa o espaço inferior
         self.log_limpeza = self.montar_log(self.container_limpeza)
-
-        # Container para os gráficos do Dashboard na Limpeza
-        self.dash_container_limpeza = ttk.Frame(self.container_limpeza, style="Card.TFrame")
-        self.dash_container_limpeza.pack(fill=tk.BOTH, expand=True, pady=5)
 
     def montar_pagina_resumo(self):
         """Constrói os widgets da página de resumo"""
@@ -706,63 +702,6 @@ class LimpadorPlanilhaGUI:
             df_limpo = self.aplicar_filtros_adicionais(df)
             self.df_resultado = df_limpo # ARMAZENA PARA SALVAMENTO POSTERIOR
             
-            # OTIMIZAÇÃO: Preparar dados para Dashboard se for o preset de Mais Vendidos
-            if preset_atual and "Mais Vendidos" in preset_atual.get("nome", ""):
-                 try:
-                     # BUSCA INTELIGENTE DE COLUNA DE QUANTIDADE (Foco em Volume Físico)
-                     col_quantidade = -1
-                     termos_contagem = ['quantidade', 'qty', 'qtd', 'unidades', 'contagem', 'volume']
-                     termos_financeiros = ['preço', 'valor', 'total', 'r$', 'custo', 'venda_total', 'faturamento']
-                     
-                     # Tenta achar pelo nome, priorizando termos de contagem e evitando financeiros
-                     melhor_score = -1
-                     for i, col in enumerate(df_limpo.columns):
-                         col_lower = str(col).lower()
-                         # Se contém termo de contagem E NÃO contém termo financeiro forte
-                         if any(t in col_lower for t in termos_contagem):
-                             if not any(f in col_lower for f in termos_financeiros if f != 'venda'):
-                                 col_quantidade = i
-                                 break
-                     
-                     # Fallback se não achou com critérios rigorosos
-                     if col_quantidade == -1:
-                        for i, col in enumerate(df_limpo.columns):
-                            if any(t in str(col).lower() for t in termos_contagem):
-                                col_quantidade = i
-                                break
-
-                     # Fallback absoluto (coluna 25 ou última)
-                     if col_quantidade == -1:
-                         if len(df_limpo.columns) > 25: col_quantidade = 25
-                         else: col_quantidade = len(df_limpo.columns) - 1
-                     
-                     self.log(f"📊 Relatório Top 10: Baseado em '{df_limpo.columns[col_quantidade]}' (Volume)")
-
-                     def clean_numeric(val):
-                         if pd.isna(val): return 0.0
-                         if isinstance(val, (int, float)): return float(val)
-                         # Limpeza Universal de Números (BR/US)
-                         s = str(val).replace('R$', '').strip()
-                         if not s: return 0.0
-                         
-                         # Se tem vírgula e ponto, assume ponto como milhar e vírgula como decimal (BR)
-                         if ',' in s and '.' in s:
-                             s = s.replace('.', '').replace(',', '.')
-                         # Se tem apenas vírgula, assume decimal (BR)
-                         elif ',' in s:
-                             s = s.replace(',', '.')
-                         
-                         try: return float(s)
-                         except: return 0.0
-                         
-                     df_limpo['qty_clean'] = df_limpo.iloc[:, col_quantidade].apply(clean_numeric)
-                     # Log de precisão para o usuário conferir
-                     total_detectado = df_limpo['qty_clean'].sum()
-                     self.log(f"📊 Precisão: Soma total detectada = {total_detectado:,.2f}")
-                     
-                     self.exibir_dashboard(df_limpo, container=self.dash_container_limpeza)
-                 except Exception as dex:
-                     self.log(f"⚠️ Não foi possível gerar gráfico: {dex}")
 
             # Finalizar sem salvar automaticamente
             tempo_execucao = (datetime.now() - inicio).total_seconds()
