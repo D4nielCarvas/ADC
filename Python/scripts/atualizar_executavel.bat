@@ -34,7 +34,7 @@ echo.
 echo [4/5] Recompilando executável...
 echo Isso pode levar alguns minutos. Aguarde...
 echo.
-python -m PyInstaller --onefile --windowed --clean --noconfirm --name="ADC" "src/main.py"
+python -m PyInstaller --onefile --windowed --clean --noconfirm --name="ADC" --add-data "src/config.json;src" "src/main.py"
 
 if %errorlevel% neq 0 (
     echo.
