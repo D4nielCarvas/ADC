@@ -310,12 +310,12 @@ class LimpadorPlanilhaGUI:
         self.btn_salvar_limpeza = ttk.Button(self.container_limpeza, text="💾 SALVAR PLANILHA LIMPA", command=self.salvar_resultado_processado, style="Secondary.TButton")
         # self.btn_salvar_limpeza.pack_forget() # Oculto
 
+        # Log com tamanho fixo para não sumir (AGORA ACIMA DO DASHBOARD)
+        self.montar_log(self.container_limpeza)
+
         # Container para os gráficos do Dashboard na Limpeza
         self.dash_container_limpeza = ttk.Frame(self.container_limpeza, style="Card.TFrame")
         self.dash_container_limpeza.pack(fill=tk.BOTH, expand=True, pady=5)
-
-        # Log com tamanho fixo para não sumir
-        self.montar_log(self.container_limpeza)
 
     def montar_pagina_resumo(self):
         """Constrói os widgets da página de resumo"""
@@ -703,16 +703,34 @@ class LimpadorPlanilhaGUI:
             # OTIMIZAÇÃO: Preparar dados para Dashboard se for o preset de Mais Vendidos
             if preset_atual and "Mais Vendidos" in preset_atual.get("nome", ""):
                  try:
-                     col_quantidade = 25 # Z
+                     # BUSCA INTELIGENTE DE COLUNA DE QUANTIDADE
+                     col_quantidade = -1
+                     possiveis_nomes = ['Quantidade', 'Qty', 'Qtd', 'Venda', 'Total']
+                     
+                     # Tenta achar pelo nome
+                     for i, col in enumerate(df_limpo.columns):
+                         if any(token.lower() in str(col).lower() for token in possiveis_nomes):
+                             col_quantidade = i
+                             break
+                     
+                     # Se não achou pelo nome, tenta a coluna 25 original (pode ter mudado)
+                     if col_quantidade == -1:
+                         if len(df_limpo.columns) > 25: col_quantidade = 25
+                         else: col_quantidade = len(df_limpo.columns) - 1 # Última coluna como fallback
+                     
+                     self.log(f"📊 Gerando dashboard (Coluna detectada: {df_limpo.columns[col_quantidade]})")
+
                      def clean_numeric(val):
                          if pd.isna(val): return 0.0
                          if isinstance(val, (int, float)): return float(val)
                          s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
                          try: return float(s)
                          except: return 0.0
+                         
                      df_limpo['qty_clean'] = df_limpo.iloc[:, col_quantidade].apply(clean_numeric)
                      self.exibir_dashboard(df_limpo, container=self.dash_container_limpeza)
-                 except: pass
+                 except Exception as dex:
+                     self.log(f"⚠️ Não foi possível gerar gráfico: {dex}")
 
             # Finalizar sem salvar automaticamente
             tempo_execucao = (datetime.now() - inicio).total_seconds()
