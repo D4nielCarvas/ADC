@@ -13,6 +13,8 @@ from tkinter import filedialog, scrolledtext, messagebox
 from tkinter import ttk
 import threading
 import xlrd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
 class LimpadorPlanilhaGUI:
@@ -27,11 +29,14 @@ class LimpadorPlanilhaGUI:
         self.root.geometry("1000x850") # Aumentado para acomodar a sidebar
         self.root.configure(bg="#1e1e2e")
         
-        # Variáveis
+        # Variáveis de Estado
         self.caminho_entrada = tk.StringVar()
         self.caminho_saida = tk.StringVar()
         self.processando = False
         self.pagina_atual = None
+        self.cache_excel = {}  # OTIMIZAÇÃO: Cache de objetos pd.ExcelFile
+        self.opacidade_atual = 1.0  # Para animações
+        self.dashboard_canvas = None # Guardar referência do gráfico
         
         # Novas Variáveis Multi-Relatório
         self.presets = self.carregar_presets()
@@ -158,45 +163,74 @@ class LimpadorPlanilhaGUI:
         self.btn_nav_resumo = ttk.Button(self.sidebar, text="📊 Resumo", style="Nav.TButton", command=lambda: self.mudar_pagina("resumo"))
         self.btn_nav_resumo.pack(fill=tk.X, padx=10, pady=2)
 
+        self.btn_nav_config = ttk.Button(self.sidebar, text="⚙️ Configurações", style="Nav.TButton", command=lambda: self.mudar_pagina("config"))
+        self.btn_nav_config.pack(fill=tk.X, padx=10, pady=2)
+
         # Espaçador inferior
         ttk.Frame(self.sidebar, style="Sidebar.TFrame").pack(fill=tk.BOTH, expand=True)
 
         self.btn_full = ttk.Button(self.sidebar, text="🔲 Tela Cheia", command=self.toggle_fullscreen, style="Secondary.TButton")
-        self.btn_full.pack(fill=tk.X, padx=20, pady=20)
+        self.btn_full.pack(fill=tk.X, padx=10, pady=5)
         self.root.bind("<F11>", lambda e: self.toggle_fullscreen())
 
         # --- CONTAINERS DE PÁGINAS ---
         self.container_limpeza = ttk.Frame(self.main_content)
         self.container_resumo = ttk.Frame(self.main_content)
+        self.container_config = ttk.Frame(self.main_content)
 
         self.montar_pagina_limpeza()
         self.montar_pagina_resumo()
+        self.montar_pagina_config()
 
-        # Log e Status (Fixos na base ou lateral?) -> Vamos deixar visíveis ou integrados
+        # Barra de Progresso Global
+        self.progress_frame = ttk.Frame(self.main_content)
+        self.progress_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(10, 0))
+        
+        self.progress_bar = ttk.Progressbar(self.progress_frame, orient=tk.HORIZONTAL, mode='determinate', length=100)
+        self.progress_bar.pack(fill=tk.X)
+        self.progress_bar.pack_forget() # Oculta inicialmente
+
+        # Log e Status
         self.status_label = tk.Label(self.root, text="✨ Sistema Pronto", bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor=tk.W, padx=10, pady=3)
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
 
         self.mudar_pagina("limpeza")
 
     def mudar_pagina(self, pagina):
-        """Alternar entre os containers de página"""
-        self.container_limpeza.pack_forget()
-        self.container_resumo.pack_forget()
-        
-        if pagina == "limpeza":
-            self.container_limpeza.pack(fill=tk.BOTH, expand=True)
-            self.status_label.config(text="✨ Modo Limpeza Ativo")
-        else:
-            self.container_resumo.pack(fill=tk.BOTH, expand=True)
-            self.status_label.config(text="✨ Modo Resumo Ativo")
-            # Forçar o preset de resumo se existir
-            for p in self.presets:
-                if p.get("tipo") == "resumo":
-                    self.nome_preset.set(p["nome"])
-                    self.aplicar_preset()
-                    break
-        
-        self.pagina_atual = pagina
+        """Alternar entre os containers de página com animação suave"""
+        if self.pagina_atual == pagina:
+            return
+
+        def efeito_transicao():
+            # Limpa todos os containers de forma rápida
+            self.container_limpeza.pack_forget()
+            self.container_resumo.pack_forget()
+            self.container_config.pack_forget()
+            
+            # Reset visual dos botões da sidebar (opcional: destacar o ativo)
+            
+            if pagina == "limpeza":
+                self.container_limpeza.pack(fill=tk.BOTH, expand=True)
+                self.status_label.config(text="✨ Modo Limpeza Ativo")
+            elif pagina == "resumo":
+                self.container_resumo.pack(fill=tk.BOTH, expand=True)
+                self.status_label.config(text="✨ Modo Resumo Ativo")
+                # Forçar o preset de resumo se existir
+                for p in self.presets:
+                    if p.get("tipo") == "resumo":
+                        self.nome_preset.set(p["nome"])
+                        self.aplicar_preset()
+                        break
+            elif pagina == "config":
+                self.container_config.pack(fill=tk.BOTH, expand=True)
+                self.status_label.config(text="⚙️ Configurações de Sistema")
+
+            self.pagina_atual = pagina
+            # Efeito de Fade-in (Simulado via update)
+            self.root.update_idletasks()
+
+        # Pequeno delay para suavizar
+        self.root.after(50, efeito_transicao)
 
     def montar_pagina_header(self, parent, titulo, icone):
         header = ttk.Frame(parent)
@@ -293,7 +327,89 @@ class LimpadorPlanilhaGUI:
         self.btn_processar_resumo = ttk.Button(self.container_resumo, text="📊 GERAR RESUMO AGORA", command=self.iniciar_processamento, style="Accent.TButton")
         self.btn_processar_resumo.pack(fill=tk.X, pady=20)
 
+        # Container para os gráficos do Dashboard
+        self.dash_container = ttk.Frame(self.container_resumo, style="Card.TFrame")
+        self.dash_container.pack(fill=tk.BOTH, expand=True)
+
         self.montar_log(self.container_resumo)
+
+    def montar_pagina_config(self):
+        """Página de Configurações (Editor de Presets)"""
+        self.montar_pagina_header(self.container_config, "Configurações e Presets", "⚙️")
+
+        main_card = ttk.Frame(self.container_config, style="Card.TFrame", padding=20)
+        main_card.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(main_card, text="📝 GERENCIAR PRESETS", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 15))
+        
+        # Lista de Presets existentes
+        list_frame = ttk.Frame(main_card, style="Card.TFrame")
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.preset_listbox = tk.Listbox(list_frame, bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 10), borderwidth=0, highlightthickness=1, highlightcolor="#89b4fa")
+        self.preset_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.preset_listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.preset_listbox.config(yscrollcommand=scrollbar.set)
+        
+        # Botões de Ação
+        btn_frame = ttk.Frame(main_card, style="Card.TFrame")
+        btn_frame.pack(fill=tk.X, pady=15)
+        
+        ttk.Button(btn_frame, text="➕ Novo", style="Secondary.TButton", width=10, command=self.adicionar_preset_ui).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="🗑️ Excluir", style="Secondary.TButton", width=10, command=self.excluir_preset_ui).pack(side=tk.LEFT, padx=5)
+        
+        # Info
+        inf = tk.Label(main_card, text="💡 As alterações são salvas automaticamente no arquivo config.json.", background="#313244", foreground="#585b70", font=("Segoe UI", 9, "italic"))
+        inf.pack(side=tk.BOTTOM, pady=10)
+        
+        self.atualizar_lista_presets_config()
+
+    def adicionar_preset_ui(self):
+        """Abre prompt para criar novo preset básico"""
+        from tkinter import simpledialog
+        nome = simpledialog.askstring("Novo Preset", "Nome do Preset:")
+        if nome:
+            novo = {"nome": nome, "deletar": "", "tipo": "limpeza"}
+            self.presets.append(novo)
+            self.salvar_presets()
+            self.atualizar_lista_presets_config()
+            self.preset_combo['values'] = [p["nome"] for p in self.presets]
+            messagebox.showinfo("Sucesso", f"Preset '{nome}' criado!")
+
+    def excluir_preset_ui(self):
+        """Exclui o preset selecionado na lista"""
+        selecao = self.preset_listbox.curselection()
+        if not selecao:
+            messagebox.showwarning("Aviso", "Selecione um preset para excluir.")
+            return
+        
+        index = selecao[0]
+        nome = self.presets[index]["nome"]
+        
+        if messagebox.askyesno("Confirmar", f"Deseja excluir o preset '{nome}'?"):
+            del self.presets[index]
+            self.salvar_presets()
+            self.atualizar_lista_presets_config()
+            self.preset_combo['values'] = [p["nome"] for p in self.presets]
+
+    def salvar_presets(self):
+        """Salva a lista atual de presets no config.json"""
+        try:
+            caminho = os.path.join(os.path.dirname(__file__), "config.json")
+            with open(caminho, 'w', encoding='utf-8') as f:
+                json.dump({"presets": self.presets}, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao salvar presets: {e}")
+
+    def atualizar_lista_presets_config(self):
+        """Atualiza a listagem visual de presets na página de config"""
+        self.preset_listbox.delete(0, tk.END)
+        for p in self.presets:
+            self.preset_listbox.insert(tk.END, f" {p['nome']} ({p.get('tipo', 'limpeza')})")
+
+    def montar_log(self, parent):
 
     def montar_log(self, parent):
         log_frame = ttk.Frame(parent)
@@ -367,14 +483,19 @@ class LimpadorPlanilhaGUI:
         if arquivo:
             self.caminho_entrada.set(arquivo)
             
-            # Carregar abas dinamicamente
+            # Carregar abas dinamicamente com OTIMIZAÇÃO (Cache)
             try:
-                # OTIMIZAÇÃO: Para arquivos .xls (legados), forçar motor xlrd com tratamento de corrupção
-                if arquivo.lower().endswith('.xls'):
-                    excel_file = pd.ExcelFile(arquivo, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
+                if arquivo in self.cache_excel:
+                    self.log(f"⚡ Usando cache para: {os.path.basename(arquivo)}")
+                    excel_file = self.cache_excel[arquivo]
                 else:
-                    excel_file = pd.ExcelFile(arquivo)
-                    
+                    self.set_progress(20, "Lendo estrutura do arquivo...")
+                    if arquivo.lower().endswith('.xls'):
+                        excel_file = pd.ExcelFile(arquivo, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
+                    else:
+                        excel_file = pd.ExcelFile(arquivo)
+                    self.cache_excel[arquivo] = excel_file
+                
                 self.lista_abas = excel_file.sheet_names
                 
                 # Atualiza ambos os comboboxes (Limpeza e Resumo)
@@ -403,6 +524,20 @@ class LimpadorPlanilhaGUI:
             self.caminho_saida.set(arquivo)
             self.log(f"✓ Destino definido: {os.path.basename(arquivo)}")
     
+    def set_progress(self, value, text=None):
+        """Atualiza a barra de progresso de forma segura"""
+        def atualizar():
+            if value >= 100 or value < 0:
+                self.progress_bar.pack_forget()
+            else:
+                if not self.progress_bar.winfo_viewable():
+                    self.progress_bar.pack(fill=tk.X, pady=(5, 0))
+                self.progress_bar['value'] = value
+            
+            if text:
+                self.status_label.config(text=f"⏳ {text}")
+        self.root.after(0, atualizar)
+
     def log(self, mensagem):
         """Adicionar mensagem ao log visual de forma segura para threads"""
         def atualizar():
@@ -492,23 +627,23 @@ class LimpadorPlanilhaGUI:
             self.criar_backup(caminho_entrada)
             
             # Passo 3: Carregar planilha
-            self.log("\n3️⃣ Carregando planilha...")
+            self.set_progress(10, "Lendo planilha...")
             df = self.carregar_planilha(caminho_entrada)
             
             # Passo 4: Validar índices
-            self.log("\n4️⃣ Validando índices das colunas...")
+            self.set_progress(30, "Validando colunas...")
             self.validar_indices_colunas(df, index_delet)
             
             # Passo 5: Deletar colunas
-            self.log("\n5️⃣ Deletando colunas desnecessárias...")
+            self.set_progress(50, "Limpando dados...")
             df = self.deletar_colunas(df, index_delet)
             
             # Passo 6: Aplicar Filtros Adicionais
-            self.log("\n6️⃣ Aplicando filtros adicionais...")
+            self.set_progress(70, "Aplicando filtros...")
             df_limpo = self.aplicar_filtros_adicionais(df)
             
             # Passo 7: Salvar
-            self.log("\n7️⃣ Salvando planilha limpa...")
+            self.set_progress(90, "Salvando arquivo...")
             self.salvar_planilha(df_limpo, caminho_saida)
             
             # Finalizar
@@ -776,74 +911,79 @@ class LimpadorPlanilhaGUI:
         return p.get("tipo", "limpeza") if p else "limpeza"
 
     def processar_resumo_pedidos(self, df):
-        """
-        Calcula e exibe o resumo dos pedidos:
-        - Total de itens: soma da coluna 'Quantidade' (Z)
-        - Total de pedidos: contagem única da coluna B
-        - Valor total: soma de (Quantidade * Valor Unitário) (Z * AA)
-        """
+        """Calcula e exibe o resumo dos pedidos com Dashboard"""
         try:
-            self.log("\n📊 CALCULANDO RESUMO...")
+            self.set_progress(30, "Calculando métricas...")
             
-            # Identificação das colunas (B=1, Z=25, AA=26 em base 0)
-            # Como o usuário mencionou letras, vamos tentar identificar por nome ou índice fixo
-            
-            # Mapeamento: B=1, Z=25, AA=26 (considerando A=0)
             col_pedidos = 1  # B
             col_quantidade = 25 # Z
             col_preco = 26 # AA
             
-            total_linhas = len(df)
-            
-            if len(df.columns) <= max(col_pedidos, col_quantidade, col_preco):
-                self.log(f"❌ Erro: A planilha não possui colunas suficientes (esperado até AA).")
-                return
-
             def clean_numeric(val):
                 if pd.isna(val): return 0.0
                 if isinstance(val, (int, float)): return float(val)
                 s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
-                try:
-                    return float(s)
-                except:
-                    return 0.0
+                try: return float(s)
+                except: return 0.0
 
-            # Cálculos
             df_calc = df.copy()
-            
-            # Pedidos Únicos (Coluna B / Índice 1)
             pedidos_unicos = df.iloc[:, col_pedidos].nunique()
-            
-            # Quantidade (Coluna Z / Índice 25)
             df_calc['qty_clean'] = df.iloc[:, col_quantidade].apply(clean_numeric)
             total_itens = int(df_calc['qty_clean'].sum())
-            
-            # Valor Total (Z * AA / 25 * 26)
             df_calc['price_clean'] = df.iloc[:, col_preco].apply(clean_numeric)
             df_calc['total_row'] = df_calc['qty_clean'] * df_calc['price_clean']
             valor_total = df_calc['total_row'].sum()
             
+            self.set_progress(70, "Gerando dashboard...")
+            
             # Exibição no Log
             self.log("-" * 40)
-            self.log(f"📋 RESULTADOS:")
-            self.log(f"   Total de itens: {total_itens}")
-            self.log(f"   Total de pedidos: {pedidos_unicos}")
-            self.log(f"   Valor total do Pedido: R$ {valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+            self.log(f"� ITENS: {total_itens} | 🎫 PEDIDOS: {pedidos_unicos}")
+            self.log(f"💰 VALOR TOTAL: R$ {valor_total:,.2f}")
             self.log("-" * 40)
             
-            # Mensagem Final amigável
-            resumo_msg = (
-                f"📊 Resumo Gerado:\n\n"
-                f"• Total de itens: {total_itens}\n"
-                f"• Total de pedidos: {pedidos_unicos}\n"
-                f"• Valor total: R$ {valor_total:,.2f}"
-            ).replace(',', 'X').replace('.', ',').replace('X', '.')
-            
-            self.root.after(100, lambda: messagebox.showinfo("Resumo de Pedidos", resumo_msg))
+            self.exibir_dashboard(df_calc)
+            self.set_progress(100, "Resumo concluído!")
 
         except Exception as e:
-            self.log(f"❌ Erro no cálculo do resumo: {e}")
+            self.log(f"❌ Erro no resumo: {e}")
             raise e
+
+    def exibir_dashboard(self, df):
+        """Gera gráficos usando matplotlib e integra ao tkinter"""
+        def atualizar_gui():
+            if self.dashboard_canvas:
+                self.dashboard_canvas.get_tk_widget().destroy()
+            
+            plt.rcParams['text.color'] = '#cdd6f4'
+            plt.rcParams['axes.labelcolor'] = '#cdd6f4'
+            plt.rcParams['xtick.color'] = '#cdd6f4'
+            plt.rcParams['ytick.color'] = '#cdd6f4'
+
+            fig, ax = plt.subplots(figsize=(6, 3), dpi=100)
+            fig.patch.set_facecolor('#1e1e2e')
+            ax.set_facecolor('#313244')
+            
+            try:
+                # Agrupa Top 10 por Quantidade
+                if len(df.columns) > 2:
+                    nome_col = df.columns[2]
+                    top_10 = df.groupby(nome_col)['qty_clean'].sum().nlargest(10)
+                else:
+                    top_10 = df['qty_clean'].nlargest(10)
+
+                top_10.plot(kind='barh', ax=ax, color='#89b4fa')
+                ax.set_title("Top 10 Itens (Qtd)", color='#89b4fa', weight='bold')
+                ax.invert_yaxis()
+                plt.tight_layout()
+                
+                self.dashboard_canvas = FigureCanvasTkAgg(fig, master=self.dash_container)
+                self.dashboard_canvas.draw()
+                self.dashboard_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            except Exception as e:
+                self.log(f"⚠️ Erro no gráfico: {e}")
+
+        self.root.after(0, atualizar_gui)
 
 
 def main():

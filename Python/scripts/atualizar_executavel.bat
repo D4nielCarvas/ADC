@@ -27,7 +27,7 @@ echo ✓ Python encontrado!
 echo.
 
 echo [3/5] Verificando dependências...
-python -m pip install --quiet --disable-pip-version-check pyinstaller pandas openpyxl xlrd
+python -m pip install --quiet --disable-pip-version-check pyinstaller pandas openpyxl xlrd matplotlib
 echo ✓ Dependências verificadas!
 echo.
 
