@@ -484,28 +484,29 @@ class LimpadorPlanilhaGUI:
                 break
 
     def atualizar_colunas_aba(self, event=None):
-        """Atualizar a lista de colunas baseada na aba selecionada"""
+        """Atualizar a lista de colunas baseada na aba selecionada com Fallback"""
         arquivo = self.caminho_entrada.get()
         aba = self.aba_selecionada.get()
         
+        if not arquivo or not aba: return
+
         try:
-            # Carrega apenas o cabeçalho para ser rápido
-            if arquivo.lower().endswith('.xls'):
-                df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='xlrd')
-                df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='xlrd')
-            else:
-                df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='openpyxl')
-                df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='openpyxl')
+            # Tenta carregar apenas o cabeçalho para ser rápido
+            try:
+                if arquivo.lower().endswith('.xls'):
+                    df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='xlrd')
+                    df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='xlrd')
+                else:
+                    df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='openpyxl')
+                    df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='openpyxl')
+            except Exception:
+                # FALLBACK: Tenta o motor oposto
+                engine_alt = 'openpyxl' if arquivo.lower().endswith('.xls') else 'xlrd'
+                self.log(f"⚠️ Tentando motor alternativo ({engine_alt}) para colunas...")
+                df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine=engine_alt)
+                df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine=engine_alt)
             
             self.lista_colunas = list(df_temp.columns)
-            self.coluna_combo['values'] = self.lista_colunas
-            
-            # Tenta pré-selecionar a última coluna numérica
-            cols_num = df_exemplo.select_dtypes(include=['number']).columns
-            if len(cols_num) > 0:
-                self.coluna_valor_selecionada.set(cols_num[-1])
-            elif self.lista_colunas:
-                self.coluna_valor_selecionada.set(self.lista_colunas[-1])
             
         except Exception as e:
             self.log(f"⚠ Erro ao ler colunas da aba: {e}")
@@ -528,10 +529,17 @@ class LimpadorPlanilhaGUI:
                     excel_file = self.cache_excel[arquivo]
                 else:
                     self.set_progress(20, "Lendo estrutura do arquivo...")
-                    if arquivo.lower().endswith('.xls'):
-                        excel_file = pd.ExcelFile(arquivo, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
-                    else:
-                        excel_file = pd.ExcelFile(arquivo, engine='openpyxl')
+                    try:
+                        if arquivo.lower().endswith('.xls'):
+                            excel_file = pd.ExcelFile(arquivo, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
+                        else:
+                            excel_file = pd.ExcelFile(arquivo, engine='openpyxl')
+                    except Exception as e:
+                        # FALLBACK AUTOMÁTICO
+                        engine_alt = 'openpyxl' if arquivo.lower().endswith('.xls') else 'xlrd'
+                        self.log(f"⚠️ Motor primário falhou. Tentando {engine_alt}...")
+                        excel_file = pd.ExcelFile(arquivo, engine=engine_alt)
+                    
                     self.cache_excel[arquivo] = excel_file
                 
                 self.lista_abas = excel_file.sheet_names
@@ -746,11 +754,21 @@ class LimpadorPlanilhaGUI:
             aba = self.aba_selecionada.get()
             self.log(f"   Aba selecionada: {aba}")
             
-            if caminho.lower().endswith('.xls'):
-                # Motor xlrd com flag para ignorar corrupções leves de cabeçalho
-                df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
-            else:
-                df = pd.read_excel(caminho, sheet_name=aba, engine='openpyxl')
+            try:
+                if caminho.lower().endswith('.xls'):
+                    # Motor xlrd com flag para ignorar corrupções leves de cabeçalho
+                    df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
+                else:
+                    df = pd.read_excel(caminho, sheet_name=aba, engine='openpyxl')
+            except Exception as e:
+                # FALLBACK AUTOMÁTICO DE MOTOR
+                engine_alt = 'openpyxl' if caminho.lower().endswith('.xls') else 'xlrd'
+                self.log(f"⚠️ Falha no motor primário ({e}). Tentando {engine_alt}...")
+                
+                if engine_alt == 'xlrd':
+                    df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
+                else:
+                    df = pd.read_excel(caminho, sheet_name=aba, engine='openpyxl')
                 
             self.log(f"✓ Planilha carregada: {len(df)} linhas, {len(df.columns)} colunas")
             return df
