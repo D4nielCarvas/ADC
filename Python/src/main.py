@@ -729,11 +729,25 @@ class LimpadorPlanilhaGUI:
                      def clean_numeric(val):
                          if pd.isna(val): return 0.0
                          if isinstance(val, (int, float)): return float(val)
-                         s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
+                         # Limpeza Universal de Números (BR/US)
+                         s = str(val).replace('R$', '').strip()
+                         if not s: return 0.0
+                         
+                         # Se tem vírgula e ponto, assume ponto como milhar e vírgula como decimal (BR)
+                         if ',' in s and '.' in s:
+                             s = s.replace('.', '').replace(',', '.')
+                         # Se tem apenas vírgula, assume decimal (BR)
+                         elif ',' in s:
+                             s = s.replace(',', '.')
+                         
                          try: return float(s)
                          except: return 0.0
                          
                      df_limpo['qty_clean'] = df_limpo.iloc[:, col_quantidade].apply(clean_numeric)
+                     # Log de precisão para o usuário conferir
+                     total_detectado = df_limpo['qty_clean'].sum()
+                     self.log(f"📊 Precisão: Soma total detectada = {total_detectado:,.2f}")
+                     
                      self.exibir_dashboard(df_limpo, container=self.dash_container_limpeza)
                  except Exception as dex:
                      self.log(f"⚠️ Não foi possível gerar gráfico: {dex}")
