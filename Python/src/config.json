@@ -11,6 +11,12 @@
             "filtro_valor_padrao": "1"
         },
         {
+            "nome": "Resumo de Pedidos",
+            "colunas_deletar": "",
+            "filtro_valor_padrao": "0",
+            "tipo": "resumo"
+        },
+        {
             "nome": "Personalizado",
             "colunas_deletar": "",
             "filtro_valor_padrao": "0"

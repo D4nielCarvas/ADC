@@ -6,11 +6,11 @@ Aplicação profissional com Interface Gráfica (GUI) para limpeza e filtragem d
 ## 🚀 Funcionalidades
 
 - **Multicamadas e Presets**: Suporte dinâmico para diferentes tipos de relatórios via `config.json`.
+- **Navegação Inteligente**: Nova barra lateral para alternar entre os modos de **Limpeza** e **Resumo**.
+- **Resumo de Pedidos**: Nova funcionalidade que calcula total de itens, pedidos e valor sem gerar arquivos.
 - **Indexação Humana (A=1)**: Sistema de colunas intuitivo que segue o padrão do Excel (Coluna A = 1, Coluna B = 2).
-- **Seleção de Abas**: Escolha qual aba (sheet) do Excel deseja processar diretamente na interface.
-- **Controle de Saída Manual**: Total liberdade para escolher o nome e o local de salvamento dos arquivos.
-- **Interface Premium**: Design modernizado com Modo Escuro, cards e suporte a Tela Cheia (F11).
-- **Filtros Flexíveis**: Começam desmarcados para garantir que você só aplique o que realmente deseja.
+- **Tratamento de Arquivos Legados**: Suporte robusto para leitura de arquivos `.xls` com cabeçalhos inconsistentes.
+- **Interface Pro**: Design modernizado com Modo Escuro, cards e suporte a Tela Cheia (F11).
 
 ## 📁 Estrutura do Projeto
 
@@ -28,7 +28,7 @@ ADC/
 ## 🛠️ Requisitos
 
 - **Python 3.8+**
-- Dependências: `pandas`, `openpyxl`, `tkinter` (incluído no Python)
+- Dependências: `pandas`, `openpyxl`, `xlrd`, `tkinter` (incluído no Python)
 
 ## 💻 Como Usar
 

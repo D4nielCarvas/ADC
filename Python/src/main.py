@@ -12,6 +12,7 @@ import tkinter as tk
 from tkinter import filedialog, scrolledtext, messagebox
 from tkinter import ttk
 import threading
+import xlrd
 
 
 class LimpadorPlanilhaGUI:
@@ -22,15 +23,15 @@ class LimpadorPlanilhaGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("ADC v2.0")
-        self.root.geometry("800x850")
-        self.root.configure(bg="#1e1e2e")  # Cor de fundo escura (Catppuccin Mocha)
-        self.root.resizable(False, False)
+        self.root.title("ADC v2.1 Pro")
+        self.root.geometry("1000x850") # Aumentado para acomodar a sidebar
+        self.root.configure(bg="#1e1e2e")
         
         # Variáveis
         self.caminho_entrada = tk.StringVar()
         self.caminho_saida = tk.StringVar()
         self.processando = False
+        self.pagina_atual = None
         
         # Novas Variáveis Multi-Relatório
         self.presets = self.carregar_presets()
@@ -40,9 +41,9 @@ class LimpadorPlanilhaGUI:
         self.lista_abas = []
         self.lista_colunas = []
         
-        # Variáveis para filtros adicionais (Padrão: Desmarcados)
-        self.remover_duplicadas = tk.BooleanVar(value=False)
-        self.remover_vazias = tk.BooleanVar(value=False)
+        # Variáveis para filtros adicionais
+        self.remover_duplicadas = tk.BooleanVar(value=True)
+        self.remover_vazias = tk.BooleanVar(value=True)
         self.filtrar_por_valor = tk.BooleanVar(value=False)
         self.valor_minimo = tk.StringVar(value="")
         self.filtrar_por_texto = tk.BooleanVar(value=False)
@@ -68,16 +69,18 @@ class LimpadorPlanilhaGUI:
         # Cores do Tema (Modern Dark)
         bg_dark = "#1e1e2e"
         bg_card = "#313244"
-        accent = "#89b4fa"      # Azul pastel
-        success = "#a6e3a1"     # Verde pastel
-        warning = "#fab387"     # Laranja pastel
+        accent = "#89b4fa"      
+        success = "#a6e3a1"     
+        warning = "#fab387"     
         text_color = "#cdd6f4"
         entry_bg = "#45475a"
+        sidebar_bg = "#181825"
 
         style.theme_use('clam')
         
         # Estilos Gerais
         style.configure("TFrame", background=bg_dark)
+        style.configure("Sidebar.TFrame", background=sidebar_bg)
         style.configure("Card.TFrame", background=bg_card, relief="flat")
         
         style.configure("TLabel", 
@@ -87,7 +90,7 @@ class LimpadorPlanilhaGUI:
         )
         
         style.configure("Title.TLabel", 
-            background=bg_dark, 
+            background=sidebar_bg, 
             foreground=accent, 
             font=("Segoe UI", 20, "bold")
         )
@@ -97,14 +100,19 @@ class LimpadorPlanilhaGUI:
             foreground=accent, 
             font=("Segoe UI", 11, "bold")
         )
-        
-        style.configure("SubCard.TLabel", 
-            background=bg_card, 
-            foreground=text_color, 
-            font=("Segoe UI", 10)
+
+        style.configure("Nav.TButton", 
+            padding=10, 
+            font=("Segoe UI", 11),
+            background=sidebar_bg,
+            foreground=text_color,
+            anchor="w"
+        )
+        style.map("Nav.TButton",
+            background=[('active', '#313244'), ('pressed', accent)],
+            foreground=[('active', accent)]
         )
 
-        # Estilo de Botões Modernos
         style.configure("Accent.TButton", 
             padding=10, 
             font=("Segoe UI", 11, "bold"),
@@ -121,201 +129,177 @@ class LimpadorPlanilhaGUI:
             background=entry_bg,
             foreground=text_color
         )
-        style.map("Secondary.TButton",
-            background=[('active', '#585b70'), ('pressed', '#313244')]
-        )
-
-        # Estilo de Entries e Comboboxes
-        style.configure("TEntry", 
-            fieldbackground=entry_bg, 
-            foreground=text_color,
-            lightcolor=accent,
-            bordercolor=bg_card
-        )
         
-        style.configure("TCombobox", 
-            fieldbackground=entry_bg, 
-            background=bg_card,
-            foreground=text_color,
-            arrowcolor=accent
-        )
-
-        style.configure("TLabelframe", 
-            background=bg_card, 
-            foreground=accent, 
-            font=("Segoe UI", 10, "bold"),
-            bordercolor=bg_dark
-        )
+        style.configure("TEntry", fieldbackground=entry_bg, foreground=text_color)
+        style.configure("TCombobox", fieldbackground=entry_bg, background=bg_card, foreground=text_color)
+        style.configure("TLabelframe", background=bg_card, foreground=accent, font=("Segoe UI", 10, "bold"))
         style.configure("TLabelframe.Label", background=bg_card, foreground=accent)
-        
-        style.configure("TCheckbutton", 
-            background=bg_card, 
-            foreground=text_color,
-            font=("Segoe UI", 10)
-        )
-        style.map("TCheckbutton",
-            background=[('active', bg_card)],
-            foreground=[('active', accent)]
-        )
+        style.configure("TCheckbutton", background=bg_card, foreground=text_color)
 
     def criar_interface(self):
-        """Criar interface com design premium"""
+        """Criar interface com sidebar e páginas"""
         self.configurar_estilos()
         
-        # Frame principal com padding
-        container = ttk.Frame(self.root, padding="30")
-        container.grid(row=0, column=0, sticky="nsew")
-        self.root.columnconfigure(0, weight=1)
-        
-        # Header / Logo
-        header_frame = ttk.Frame(container)
-        header_frame.pack(fill=tk.X, pady=(0, 25))
-        
-        logo_label = ttk.Label(
-            header_frame, 
-            text="✨ ADC",
-            style="Title.TLabel"
-        )
-        logo_label.pack(side=tk.LEFT)
-        
-        slogan_label = ttk.Label(
-            header_frame, 
-            text="CLEANER PRO",
-            font=("Segoe UI", 8, "bold"),
-            foreground="#585b70"
-        )
-        slogan_label.pack(side=tk.LEFT, padx=10, pady=(10, 0))
+        # Layout Principal
+        self.sidebar = ttk.Frame(self.root, style="Sidebar.TFrame", width=200)
+        self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        self.sidebar.pack_propagate(False)
 
-        # Botão Tela Cheia
-        self.is_fullscreen = False
-        btn_full = ttk.Button(
-            header_frame, 
-            text="🔲 Tela Cheia (F11)", 
-            command=self.toggle_fullscreen,
-            style="Secondary.TButton"
-        )
-        btn_full.pack(side=tk.RIGHT)
+        self.main_content = ttk.Frame(self.root, padding="30")
+        self.main_content.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # --- SIDEBAR CONTENT ---
+        ttk.Label(self.sidebar, text="✨ ADC", style="Title.TLabel").pack(pady=(30, 10), padx=20, anchor="w")
+        ttk.Label(self.sidebar, text="PRO VERSION", font=("Segoe UI", 8, "bold"), foreground="#585b70", background="#181825").pack(padx=20, anchor="w", pady=(0, 40))
+
+        self.btn_nav_limpeza = ttk.Button(self.sidebar, text="🧹 Limpeza", style="Nav.TButton", command=lambda: self.mudar_pagina("limpeza"))
+        self.btn_nav_limpeza.pack(fill=tk.X, padx=10, pady=2)
+
+        self.btn_nav_resumo = ttk.Button(self.sidebar, text="📊 Resumo", style="Nav.TButton", command=lambda: self.mudar_pagina("resumo"))
+        self.btn_nav_resumo.pack(fill=tk.X, padx=10, pady=2)
+
+        # Espaçador inferior
+        ttk.Frame(self.sidebar, style="Sidebar.TFrame").pack(fill=tk.BOTH, expand=True)
+
+        self.btn_full = ttk.Button(self.sidebar, text="🔲 Tela Cheia", command=self.toggle_fullscreen, style="Secondary.TButton")
+        self.btn_full.pack(fill=tk.X, padx=20, pady=20)
         self.root.bind("<F11>", lambda e: self.toggle_fullscreen())
 
-        # --- SEÇÃO DE ARQUIVOS (CARD) ---
-        file_card = ttk.Frame(container, style="Card.TFrame", padding=15)
-        file_card.pack(fill=tk.X, pady=5)
+        # --- CONTAINERS DE PÁGINAS ---
+        self.container_limpeza = ttk.Frame(self.main_content)
+        self.container_resumo = ttk.Frame(self.main_content)
 
+        self.montar_pagina_limpeza()
+        self.montar_pagina_resumo()
+
+        # Log e Status (Fixos na base ou lateral?) -> Vamos deixar visíveis ou integrados
+        self.status_label = tk.Label(self.root, text="✨ Sistema Pronto", bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor=tk.W, padx=10, pady=3)
+        self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.mudar_pagina("limpeza")
+
+    def mudar_pagina(self, pagina):
+        """Alternar entre os containers de página"""
+        self.container_limpeza.pack_forget()
+        self.container_resumo.pack_forget()
+        
+        if pagina == "limpeza":
+            self.container_limpeza.pack(fill=tk.BOTH, expand=True)
+            self.status_label.config(text="✨ Modo Limpeza Ativo")
+        else:
+            self.container_resumo.pack(fill=tk.BOTH, expand=True)
+            self.status_label.config(text="✨ Modo Resumo Ativo")
+            # Forçar o preset de resumo se existir
+            for p in self.presets:
+                if p.get("tipo") == "resumo":
+                    self.nome_preset.set(p["nome"])
+                    self.aplicar_preset()
+                    break
+        
+        self.pagina_atual = pagina
+
+    def montar_pagina_header(self, parent, titulo, icone):
+        header = ttk.Frame(parent)
+        header.pack(fill=tk.X, pady=(0, 20))
+        ttk.Label(header, text=f"{icone} {titulo}", font=("Segoe UI", 18, "bold"), foreground="#89b4fa").pack(side=tk.LEFT)
+
+    def montar_pagina_limpeza(self):
+        """Constrói os widgets da página de limpeza"""
+        self.montar_pagina_header(self.container_limpeza, "Limpeza de Planilhas", "🧹")
+        
+        # Card Arquivos
+        file_card = ttk.Frame(self.container_limpeza, style="Card.TFrame", padding=15)
+        file_card.pack(fill=tk.X, pady=5)
         ttk.Label(file_card, text="📂 ARQUIVOS", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 10))
 
         # Entrada
         input_frame = ttk.Frame(file_card, style="Card.TFrame")
         input_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(input_frame, text="Entrada:", style="SubCard.TLabel").pack(side=tk.LEFT)
-        self.entrada_entry = ttk.Entry(input_frame, textvariable=self.caminho_entrada, font=("Segoe UI", 9))
-        self.entrada_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+        tk.Label(input_frame, text="Entrada:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
+        ttk.Entry(input_frame, textvariable=self.caminho_entrada, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         ttk.Button(input_frame, text="📁", width=3, command=self.selecionar_arquivo_entrada, style="Secondary.TButton").pack(side=tk.LEFT)
 
         # Saída
         output_frame = ttk.Frame(file_card, style="Card.TFrame")
         output_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(output_frame, text="Saída:  ", style="SubCard.TLabel").pack(side=tk.LEFT)
-        self.saida_entry = ttk.Entry(output_frame, textvariable=self.caminho_saida, font=("Segoe UI", 9))
-        self.saida_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+        tk.Label(output_frame, text="Saída:  ", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
+        ttk.Entry(output_frame, textvariable=self.caminho_saida, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         ttk.Button(output_frame, text="💾", width=3, command=self.selecionar_arquivo_saida, style="Secondary.TButton").pack(side=tk.LEFT)
 
-        # --- SEÇÃO DE CONFIGURAÇÃO (CARD) ---
-        config_card = ttk.Frame(container, style="Card.TFrame", padding=15)
+        # Configurações
+        config_card = ttk.Frame(self.container_limpeza, style="Card.TFrame", padding=15)
         config_card.pack(fill=tk.X, pady=15)
-
         ttk.Label(config_card, text="⚙️ CONFIGURAÇÕES", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 10))
 
-        # Preset e Colunas
         row1 = ttk.Frame(config_card, style="Card.TFrame")
         row1.pack(fill=tk.X, pady=5)
-        
-        ttk.Label(row1, text="Preset:", style="SubCard.TLabel").pack(side=tk.LEFT)
-        self.preset_combo = ttk.Combobox(row1, textvariable=self.nome_preset, values=[p["nome"] for p in self.presets], state="readonly", width=20)
+        tk.Label(row1, text="Preset:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
+        self.preset_combo = ttk.Combobox(row1, textvariable=self.nome_preset, values=[p["nome"] for p in self.presets], state="readonly", width=25)
         self.preset_combo.pack(side=tk.LEFT, padx=10)
         self.preset_combo.bind("<<ComboboxSelected>>", self.aplicar_preset)
 
-        ttk.Label(row1, text="Deletar Colunas:", style="SubCard.TLabel").pack(side=tk.LEFT, padx=(15, 0))
-        self.indices_entry = ttk.Entry(row1, width=15)
-        self.indices_entry.pack(side=tk.LEFT, padx=10)
-        ttk.Label(row1, text="(A=1, B=2...)", foreground="#6c7086", font=("Segoe UI", 8), style="SubCard.TLabel").pack(side=tk.LEFT)
-
-        # Aba e Coluna de Valor
-        row2 = ttk.Frame(config_card, style="Card.TFrame")
-        row2.pack(fill=tk.X, pady=10)
-        
-        ttk.Label(row2, text="Aba:", style="SubCard.TLabel").pack(side=tk.LEFT)
-        self.aba_combo = ttk.Combobox(row2, textvariable=self.aba_selecionada, state="readonly", width=15)
+        tk.Label(row1, text="Aba:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT, padx=15)
+        self.aba_combo = ttk.Combobox(row1, textvariable=self.aba_selecionada, state="readonly", width=15)
         self.aba_combo.pack(side=tk.LEFT, padx=10)
         self.aba_combo.bind("<<ComboboxSelected>>", self.atualizar_colunas_aba)
 
-        ttk.Label(row2, text="Coluna Valor:", style="SubCard.TLabel").pack(side=tk.LEFT, padx=(20, 0))
-        self.coluna_combo = ttk.Combobox(row2, textvariable=self.coluna_valor_selecionada, state="readonly", width=20)
-        self.coluna_combo.pack(side=tk.LEFT, padx=10)
+        row2 = ttk.Frame(config_card, style="Card.TFrame")
+        row2.pack(fill=tk.X, pady=10)
+        tk.Label(row2, text="Deletar Colunas:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
+        self.indices_entry = ttk.Entry(row2, width=30)
+        self.indices_entry.pack(side=tk.LEFT, padx=10)
 
-        # --- SEÇÃO DE FILTROS (CARD) ---
-        filters_card = ttk.LabelFrame(container, text=" ✨ REFINAMENTO ", padding=10, style="TLabelframe")
+        # Refinamento
+        filters_card = ttk.LabelFrame(self.container_limpeza, text=" ✨ REFINAMENTO ", padding=10, style="TLabelframe")
         filters_card.pack(fill=tk.X, pady=5)
-
-        # Grid de filtros
         f_grid = ttk.Frame(filters_card, style="Card.TFrame")
         f_grid.pack(fill=tk.X)
-
-        self.remover_duplicadas.set(True)
         ttk.Checkbutton(f_grid, text="🔄 Duplicadas", variable=self.remover_duplicadas).grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
-        
-        self.remover_vazias.set(True)
         ttk.Checkbutton(f_grid, text="🗑️ Vazias", variable=self.remover_vazias).grid(row=0, column=1, sticky=tk.W, padx=10, pady=5)
 
-        ttk.Checkbutton(f_grid, text="📊 Valor Mín:", variable=self.filtrar_por_valor).grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
-        ttk.Entry(f_grid, textvariable=self.valor_minimo, width=8).grid(row=1, column=1, sticky=tk.W, pady=5)
+        self.btn_processar_limpeza = ttk.Button(self.container_limpeza, text="🚀 INICIAR LIMPEZA", command=self.iniciar_processamento, style="Accent.TButton")
+        self.btn_processar_limpeza.pack(fill=tk.X, pady=20)
 
-        ttk.Checkbutton(f_grid, text="🔍 Texto:", variable=self.filtrar_por_texto).grid(row=1, column=2, sticky=tk.W, padx=(20, 0), pady=5)
-        ttk.Entry(f_grid, textvariable=self.texto_filtro, width=15).grid(row=1, column=3, sticky=tk.W, pady=5)
+        self.montar_log(self.container_limpeza)
 
-        # Botão Processar
-        self.btn_processar = ttk.Button(
-            container, 
-            text="🚀 INICIAR PROCESSAMENTO MÁGICO", 
-            command=self.iniciar_processamento,
-            style="Accent.TButton"
-        )
-        self.btn_processar.pack(fill=tk.X, pady=25)
+    def montar_pagina_resumo(self):
+        """Constrói os widgets da página de resumo"""
+        self.montar_pagina_header(self.container_resumo, "Resumo de Pedidos", "📊")
 
-        # Log
-        log_frame = ttk.Frame(container)
-        log_frame.pack(fill=tk.BOTH, expand=True)
+        file_card = ttk.Frame(self.container_resumo, style="Card.TFrame", padding=15)
+        file_card.pack(fill=tk.X, pady=5)
+        ttk.Label(file_card, text="� SELECIONAR PLANILHA", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 10))
+
+        input_frame = ttk.Frame(file_card, style="Card.TFrame")
+        input_frame.pack(fill=tk.X, pady=5)
+        tk.Label(input_frame, text="Arquivo:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
+        ttk.Entry(input_frame, textvariable=self.caminho_entrada, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+        ttk.Button(input_frame, text="�", width=3, command=self.selecionar_arquivo_entrada, style="Secondary.TButton").pack(side=tk.LEFT)
+
+        config_card = ttk.Frame(self.container_resumo, style="Card.TFrame", padding=15)
+        config_card.pack(fill=tk.X, pady=15)
         
-        ttk.Label(log_frame, text="REAL-TIME LOG", font=("Segoe UI", 8, "bold"), foreground="#585b70").pack(anchor=tk.W)
-        self.log_text = scrolledtext.ScrolledText(
-            log_frame, 
-            width=75, 
-            height=10,
-            font=("Consolas", 10),
-            bg="#11111b",
-            fg="#a6e3a1",  # Texto do log verde pastel
-            borderwidth=0,
-            padx=10,
-            pady=10
-        )
-        self.log_text.pack(fill=tk.BOTH, expand=True, pady=(5, 10))
+        r1 = ttk.Frame(config_card, style="Card.TFrame")
+        r1.pack(fill=tk.X, pady=5)
+        tk.Label(r1, text="Selecione a Aba:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
+        self.aba_resumo_combo = ttk.Combobox(r1, textvariable=self.aba_selecionada, state="readonly", width=30)
+        self.aba_resumo_combo.pack(side=tk.LEFT, padx=10)
 
-        # Status Bar
-        self.status_label = tk.Label(
-            self.root, 
-            text="✨ Sistema Pronto",
-            bg="#313244",
-            fg="#cdd6f4",
-            font=("Segoe UI", 9),
-            anchor=tk.W,
-            padx=10,
-            pady=3
-        )
-        self.status_label.grid(row=1, column=0, sticky="ew")
+        info_box = ttk.Frame(self.container_resumo, style="Card.TFrame", padding=15)
+        info_box.pack(fill=tk.X, pady=10)
+        tk.Label(info_box, text="💡 Esta função calcula automaticamente:", background="#313244", foreground="#89b4fa", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W)
+        tk.Label(info_box, text="• Total de Itens (Coluna Z)\n• Total de Pedidos (Coluna B)\n• Valor Total (Z * AA)", background="#313244", foreground="#cdd6f4", justify=tk.LEFT).pack(anchor=tk.W, pady=5)
 
-        if self.presets:
-            self.preset_combo.current(0)
-            # Aplicar preset após a interface estar totalmente carregada
-            self.root.after(100, self.aplicar_preset)
+        self.btn_processar_resumo = ttk.Button(self.container_resumo, text="📊 GERAR RESUMO AGORA", command=self.iniciar_processamento, style="Accent.TButton")
+        self.btn_processar_resumo.pack(fill=tk.X, pady=20)
+
+        self.montar_log(self.container_resumo)
+
+    def montar_log(self, parent):
+        log_frame = ttk.Frame(parent)
+        log_frame.pack(fill=tk.BOTH, expand=True)
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=8, font=("Consolas", 10), bg="#11111b", fg="#a6e3a1", borderwidth=0, padx=10, pady=10)
+        self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
 
     def toggle_fullscreen(self):
         """Alternar entre modo tela cheia e janela"""
@@ -385,11 +369,20 @@ class LimpadorPlanilhaGUI:
             
             # Carregar abas dinamicamente
             try:
-                excel_file = pd.ExcelFile(arquivo)
+                # OTIMIZAÇÃO: Para arquivos .xls (legados), forçar motor xlrd com tratamento de corrupção
+                if arquivo.lower().endswith('.xls'):
+                    excel_file = pd.ExcelFile(arquivo, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
+                else:
+                    excel_file = pd.ExcelFile(arquivo)
+                    
                 self.lista_abas = excel_file.sheet_names
+                
+                # Atualiza ambos os comboboxes (Limpeza e Resumo)
                 self.aba_combo['values'] = self.lista_abas
+                self.aba_resumo_combo['values'] = self.lista_abas
+                
                 if self.lista_abas:
-                    self.aba_combo.current(0)
+                    self.aba_selecionada.set(self.lista_abas[0])
                     self.atualizar_colunas_aba()
                 
                 self.log(f"✓ Arquivo carregado. {len(self.lista_abas)} aba(s) encontrada(s).")
@@ -413,13 +406,15 @@ class LimpadorPlanilhaGUI:
     def log(self, mensagem):
         """Adicionar mensagem ao log visual de forma segura para threads"""
         def atualizar():
-            self.log_text.insert(tk.END, mensagem + "\n")
-            self.log_text.see(tk.END)
+            if hasattr(self, 'log_text'):
+                self.log_text.insert(tk.END, mensagem + "\n")
+                self.log_text.see(tk.END)
         self.root.after(0, atualizar)
     
     def limpar_log(self):
         """Limpar área de log"""
-        self.log_text.delete(1.0, tk.END)
+        if hasattr(self, 'log_text'):
+            self.log_text.delete(1.0, tk.END)
     
     def iniciar_processamento(self):
         """Iniciar processamento em thread separada para não travar a GUI"""
@@ -431,13 +426,17 @@ class LimpadorPlanilhaGUI:
             messagebox.showerror("Erro", "Selecione o arquivo de entrada!")
             return
         
-        if not self.caminho_saida.get():
+        if not self.caminho_saida.get() and self.get_preset_tipo() != "resumo":
             messagebox.showerror("Erro", "Defina o arquivo de saída!")
             return
         
         # Executar em thread separada
         self.processando = True
-        self.btn_processar.config(state="disabled", text="⏳ Processando...")
+        
+        # Desabilitar botão correto
+        btn = self.btn_processar_limpeza if self.pagina_atual == "limpeza" else self.btn_processar_resumo
+        btn.config(state="disabled", text="⏳ Processando...")
+        
         self.status_label.config(text="⏳ Processando planilha...")
         
         thread = threading.Thread(target=self.processar_planilha)
@@ -453,11 +452,28 @@ class LimpadorPlanilhaGUI:
             self.log("=" * 60)
             self.log("")
             
+            preset_atual = self.get_preset_atual()
+            is_resumo = preset_atual.get("tipo") == "resumo" if preset_atual else False
+            
             inicio = datetime.now()
             
             # Obter configurações
             caminho_entrada = self.caminho_entrada.get()
             caminho_saida = self.caminho_saida.get()
+            
+            if is_resumo:
+                self.log("📋 MODO: RESUMO DE PEDIDOS")
+                df = self.carregar_planilha(caminho_entrada)
+                self.processar_resumo_pedidos(df)
+                
+                tempo_execucao = (datetime.now() - inicio).total_seconds()
+                self.log("")
+                self.log("=" * 60)
+                self.log("✅ RESUMO CONCLUÍDO!")
+                self.log(f"   Tempo de execução: {tempo_execucao:.2f} segundos")
+                self.log("=" * 60)
+                self.status_label.config(text="✅ Resumo concluído!")
+                return
             
             # Processar índices (Convertendo de 1-based para 0-based)
             try:
@@ -520,7 +536,8 @@ class LimpadorPlanilhaGUI:
         
         finally:
             self.processando = False
-            self.btn_processar.config(state="normal", text="▶️ PROCESSAR PLANILHA")
+            self.btn_processar_limpeza.config(state="normal", text="🚀 INICIAR LIMPEZA")
+            self.btn_processar_resumo.config(state="normal", text="📊 GERAR RESUMO AGORA")
     
     # Funções de processamento (mesmas do código anterior, adaptadas para GUI)
     
@@ -551,11 +568,17 @@ class LimpadorPlanilhaGUI:
         return True
     
     def carregar_planilha(self, caminho):
-        """Carregar planilha do Excel com aba específica"""
+        """Carregar planilha do Excel com aba específica, tratando corrupção em .xls"""
         try:
             aba = self.aba_selecionada.get()
             self.log(f"   Aba selecionada: {aba}")
-            df = pd.read_excel(caminho, sheet_name=aba)
+            
+            if caminho.lower().endswith('.xls'):
+                # Motor xlrd com flag para ignorar corrupções leves de cabeçalho
+                df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
+            else:
+                df = pd.read_excel(caminho, sheet_name=aba)
+                
             self.log(f"✓ Planilha carregada: {len(df)} linhas, {len(df.columns)} colunas")
             return df
         except Exception as e:
@@ -738,6 +761,89 @@ class LimpadorPlanilhaGUI:
         
         except Exception as e:
             raise Exception(f"Erro ao salvar planilha: {e}")
+
+    def get_preset_atual(self):
+        """Retorna o dicionário do preset selecionado"""
+        nome = self.nome_preset.get()
+        for p in self.presets:
+            if p["nome"] == nome:
+                return p
+        return None
+
+    def get_preset_tipo(self):
+        """Retorna o tipo do preset selecionado"""
+        p = self.get_preset_atual()
+        return p.get("tipo", "limpeza") if p else "limpeza"
+
+    def processar_resumo_pedidos(self, df):
+        """
+        Calcula e exibe o resumo dos pedidos:
+        - Total de itens: soma da coluna 'Quantidade' (Z)
+        - Total de pedidos: contagem única da coluna B
+        - Valor total: soma de (Quantidade * Valor Unitário) (Z * AA)
+        """
+        try:
+            self.log("\n📊 CALCULANDO RESUMO...")
+            
+            # Identificação das colunas (B=1, Z=25, AA=26 em base 0)
+            # Como o usuário mencionou letras, vamos tentar identificar por nome ou índice fixo
+            
+            # Mapeamento: B=1, Z=25, AA=26 (considerando A=0)
+            col_pedidos = 1  # B
+            col_quantidade = 25 # Z
+            col_preco = 26 # AA
+            
+            total_linhas = len(df)
+            
+            if len(df.columns) <= max(col_pedidos, col_quantidade, col_preco):
+                self.log(f"❌ Erro: A planilha não possui colunas suficientes (esperado até AA).")
+                return
+
+            def clean_numeric(val):
+                if pd.isna(val): return 0.0
+                if isinstance(val, (int, float)): return float(val)
+                s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
+                try:
+                    return float(s)
+                except:
+                    return 0.0
+
+            # Cálculos
+            df_calc = df.copy()
+            
+            # Pedidos Únicos (Coluna B / Índice 1)
+            pedidos_unicos = df.iloc[:, col_pedidos].nunique()
+            
+            # Quantidade (Coluna Z / Índice 25)
+            df_calc['qty_clean'] = df.iloc[:, col_quantidade].apply(clean_numeric)
+            total_itens = int(df_calc['qty_clean'].sum())
+            
+            # Valor Total (Z * AA / 25 * 26)
+            df_calc['price_clean'] = df.iloc[:, col_preco].apply(clean_numeric)
+            df_calc['total_row'] = df_calc['qty_clean'] * df_calc['price_clean']
+            valor_total = df_calc['total_row'].sum()
+            
+            # Exibição no Log
+            self.log("-" * 40)
+            self.log(f"📋 RESULTADOS:")
+            self.log(f"   Total de itens: {total_itens}")
+            self.log(f"   Total de pedidos: {pedidos_unicos}")
+            self.log(f"   Valor total do Pedido: R$ {valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+            self.log("-" * 40)
+            
+            # Mensagem Final amigável
+            resumo_msg = (
+                f"📊 Resumo Gerado:\n\n"
+                f"• Total de itens: {total_itens}\n"
+                f"• Total de pedidos: {pedidos_unicos}\n"
+                f"• Valor total: R$ {valor_total:,.2f}"
+            ).replace(',', 'X').replace('.', ',').replace('X', '.')
+            
+            self.root.after(100, lambda: messagebox.showinfo("Resumo de Pedidos", resumo_msg))
+
+        except Exception as e:
+            self.log(f"❌ Erro no cálculo do resumo: {e}")
+            raise e
 
 
 def main():
