@@ -4,13 +4,15 @@ Todas as alterações notáveis neste projeto serão documentadas neste arquivo.
 
 ## [2.5 Pro] - 2026-01-20
 ### Adicionado
-- **Dashboard Interativo**: Visualização gráfica de resultados usando `matplotlib`.
-- **Editor de Presets**: Interface visual para gerenciar regras de limpeza no `config.json`.
-- **Animações de Transição**: Transições suaves entre páginas da interface.
-- **Modo Tela Cheia**: Suporte a alternância via botão e tecla F11.
+- **Ranking de SKUs Mais Pedidos**: Novo dashboard na aba de Resumo focado na frequência de pedidos.
+- **Modo Cinema**: Botão "EXPANDIR DASHBOARD" para visualização cinematográfica em tela cheia.
+- **Logs Isolados**: Buffers de log independentes para as abas de Limpeza e Resumo.
+- **Limpeza Numérica Universal**: Algoritmo inteligente que suporta separadores decimais brasileiros (vírgula) e americanos (ponto).
+- **Normalização Profunda**: Agrupamento de produtos insensível a maiúsculas/minúsculas e espaços extras.
 ### Melhorado
-- **Performance**: Otimização no carregamento de abas do Excel com sistema de cache.
-- **Interface**: Refinamento visual com tema "Modern Dark" consistente em todas as abas.
+- **Simplificação de Interface**: Removido dashboard da aba de limpeza para fluxo mais direto.
+- **Performance**: Remoção da funcionalidade de backup automático e otimização de cache.
+- **UX**: Geometria de janela consistente ao alternar o modo tela cheia global.
 
 ## [2.1 Pro] - 2026-01-15
 ### Adicionado

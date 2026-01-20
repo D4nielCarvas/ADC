@@ -8,10 +8,11 @@ Aplicação profissional com Interface Gráfica (GUI) para limpeza, filtragem e 
 ## 🚀 Funcionalidades Principais
 
 - **🧹 Limpeza Inteligente**: Remova colunas desnecessárias, normalize dados e elimine duplicatas em segundos.
-- **📊 Dashboard de Pedidos**: Visualize instantaneamente o total de itens, pedidos e valor financeiro através do Modo Resumo com gráficos interativos.
+- **📊 Dashboard de SKUs**: No Modo Resumo, visualize instantaneamente os **10 SKUs Mais Pedidos** por frequência de ocorrência.
+- **🔍 Modo Cinema**: Expanda qualquer gráfico para tela cheia com um clique para análise detalhada.
 - **⚙️ Editor de Presets**: Crie e salve perfis de limpeza personalizados para diferentes tipos de relatórios via interface gráfica.
-- **📁 Suporte Universal**: Leitura robusta de arquivos `.xlsx` e `.xls` (mesmo com cabeçalhos inconsistentes ou corrompidos).
-- **✨ Interface Premium**: Design moderno em Modo Escuro, animações suaves e suporte a Tela Cheia (F11).
+- **📁 Suporte Universal**: Leitura robusta de arquivos `.xlsx` e `.xls` com tratamento de números BR/US (vírgula/ponto).
+- **✨ Interface Premium**: Design moderno em Modo Escuro com **Logs Isolados** por aba e suporte a Tela Cheia (F11).
 - **🗂️ Indexação Humana**: Sistema de colunas seguindo o padrão Excel (Coluna A = 1, Coluna B = 2).
 
 ## 📁 Estrutura do Projeto
