@@ -410,8 +410,6 @@ class LimpadorPlanilhaGUI:
             self.preset_listbox.insert(tk.END, f" {p['nome']} ({p.get('tipo', 'limpeza')})")
 
     def montar_log(self, parent):
-
-    def montar_log(self, parent):
         log_frame = ttk.Frame(parent)
         log_frame.pack(fill=tk.BOTH, expand=True)
         self.log_text = scrolledtext.ScrolledText(log_frame, height=8, font=("Consolas", 10), bg="#11111b", fg="#a6e3a1", borderwidth=0, padx=10, pady=10)
