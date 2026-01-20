@@ -1,4 +1,4 @@
-# 🧹 ADC - Limpador de Planilha MVSKU
+# 🧹 ADC
 
 Aplicação profissional com Interface Gráfica (GUI) para limpeza e filtragem de planilhas de produtos (Itens Mais Vendidos por SKU).
 
@@ -35,7 +35,7 @@ ADC/
 
 ### Usando o Executável (Windows)
 1. Vá até a pasta `dist/`.
-2. Execute o arquivo `LimpadorPlanilha.exe`.
+2. Execute o arquivo `ADC.exe`.
 
 ### Executando via Python
 1. Instale as dependências:
