@@ -35,8 +35,9 @@ class LimpadorPlanilhaGUI:
         self.processando = False
         self.pagina_atual = None
         self.cache_excel = {}  # OTIMIZAÇÃO: Cache de objetos pd.ExcelFile
-        self.opacidade_atual = 1.0  # Para animações
         self.dashboard_canvas = None # Guardar referência do gráfico
+        self.is_fullscreen = False # INICIALIZAÇÃO CORRIGIDA
+        self.df_resultado = None  # Armazena resultado processado
         
         # Novas Variáveis Multi-Relatório
         self.presets = self.carregar_presets()
@@ -264,12 +265,12 @@ class LimpadorPlanilhaGUI:
         ttk.Entry(input_frame, textvariable=self.caminho_entrada, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         ttk.Button(input_frame, text="📁", width=3, command=self.selecionar_arquivo_entrada, style="Secondary.TButton").pack(side=tk.LEFT)
 
-        # Saída
-        output_frame = ttk.Frame(file_card, style="Card.TFrame")
-        output_frame.pack(fill=tk.X, pady=5)
-        tk.Label(output_frame, text="Saída:  ", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
-        ttk.Entry(output_frame, textvariable=self.caminho_saida, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
-        ttk.Button(output_frame, text="💾", width=3, command=self.selecionar_arquivo_saida, style="Secondary.TButton").pack(side=tk.LEFT)
+        # Saída (REMOVIDO DO INICIO - SERÁ MOSTRADO NO FINAL)
+        self.output_frame = ttk.Frame(file_card, style="Card.TFrame")
+        # self.output_frame.pack(fill=tk.X, pady=5) # Oculto inicialmente
+        tk.Label(self.output_frame, text="Salvar em:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
+        ttk.Entry(self.output_frame, textvariable=self.caminho_saida, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+        ttk.Button(self.output_frame, text="💾", width=3, command=self.selecionar_arquivo_saida, style="Secondary.TButton").pack(side=tk.LEFT)
 
         # Configurações
         config_card = ttk.Frame(self.container_limpeza, style="Card.TFrame", padding=15)
@@ -303,12 +304,17 @@ class LimpadorPlanilhaGUI:
         ttk.Checkbutton(f_grid, text="🗑️ Vazias", variable=self.remover_vazias).grid(row=0, column=1, sticky=tk.W, padx=10, pady=5)
 
         self.btn_processar_limpeza = ttk.Button(self.container_limpeza, text="🚀 INICIAR LIMPEZA", command=self.iniciar_processamento, style="Accent.TButton")
-        self.btn_processar_limpeza.pack(fill=tk.X, pady=20)
+        self.btn_processar_limpeza.pack(fill=tk.X, pady=10)
+
+        # Botão de Salvamento (Aparece após processar)
+        self.btn_salvar_limpeza = ttk.Button(self.container_limpeza, text="💾 SALVAR PLANILHA LIMPA", command=self.salvar_resultado_processado, style="Secondary.TButton")
+        # self.btn_salvar_limpeza.pack_forget() # Oculto
 
         # Container para os gráficos do Dashboard na Limpeza
         self.dash_container_limpeza = ttk.Frame(self.container_limpeza, style="Card.TFrame")
-        self.dash_container_limpeza.pack(fill=tk.BOTH, expand=True)
+        self.dash_container_limpeza.pack(fill=tk.BOTH, expand=True, pady=5)
 
+        # Log com tamanho fixo para não sumir
         self.montar_log(self.container_limpeza)
 
     def montar_pagina_resumo(self):
@@ -452,8 +458,8 @@ class LimpadorPlanilhaGUI:
     def montar_log(self, parent):
         log_frame = ttk.Frame(parent)
         log_frame.pack(fill=tk.BOTH, expand=True)
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=8, font=("Consolas", 10), bg="#11111b", fg="#a6e3a1", borderwidth=0, padx=10, pady=10)
-        self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=5, font=("Consolas", 10), bg="#11111b", fg="#a6e3a1", borderwidth=0, padx=10, pady=10)
+        self.log_text.pack(fill=tk.BOTH, expand=False, pady=5)
 
     def toggle_fullscreen(self):
         """Alternar entre modo tela cheia e janela"""
@@ -611,9 +617,10 @@ class LimpadorPlanilhaGUI:
             messagebox.showerror("Erro", "Selecione o arquivo de entrada!")
             return
         
-        if not self.caminho_saida.get() and self.get_preset_tipo() != "resumo":
-            messagebox.showerror("Erro", "Defina o arquivo de saída!")
-            return
+        # O caminho de saída agora é opcional no início (fluxo post-save)
+        # if not self.caminho_saida.get() and self.get_preset_tipo() != "resumo":
+        #     messagebox.showerror("Erro", "Defina o arquivo de saída!")
+        #     return
         
         # Executar em thread separada
         self.processando = True
@@ -691,9 +698,10 @@ class LimpadorPlanilhaGUI:
             # Passo 6: Aplicar Filtros Adicionais
             self.set_progress(70, "Aplicando filtros...")
             df_limpo = self.aplicar_filtros_adicionais(df)
+            self.df_resultado = df_limpo # ARMAZENA PARA SALVAMENTO POSTERIOR
             
             # OTIMIZAÇÃO: Preparar dados para Dashboard se for o preset de Mais Vendidos
-            if "Mais Vendidos" in preset_atual.get("nome", ""):
+            if preset_atual and "Mais Vendidos" in preset_atual.get("nome", ""):
                  try:
                      col_quantidade = 25 # Z
                      def clean_numeric(val):
@@ -706,25 +714,23 @@ class LimpadorPlanilhaGUI:
                      self.exibir_dashboard(df_limpo, container=self.dash_container_limpeza)
                  except: pass
 
-            # Passo 7: Salvar
-            self.set_progress(90, "Salvando arquivo...")
-            self.salvar_planilha(df_limpo, caminho_saida)
-            
-            # Finalizar
+            # Finalizar sem salvar automaticamente
             tempo_execucao = (datetime.now() - inicio).total_seconds()
             
             self.log("")
             self.log("=" * 60)
-            self.log("✅ PROCESSAMENTO CONCLUÍDO COM SUCESSO!")
-            self.log(f"   Tempo de execução: {tempo_execucao:.2f} segundos")
+            self.log("✅ PROCESSAMENTO CONCLUÍDO!")
+            self.log(f"   Total de linhas: {len(df_limpo)}")
+            self.log(f"   Tempo: {tempo_execucao:.2f} segundos")
             self.log("=" * 60)
             
-            self.status_label.config(text="✅ Processamento concluído com sucesso!")
+            self.status_label.config(text="✅ Processamento concluído! Agora você pode salvar.")
             
-            messagebox.showinfo(
-                "Sucesso!", 
-                f"Planilha processada com sucesso!\n\nArquivo salvo em:\n{os.path.basename(caminho_saida)}"
-            )
+            # Mostrar botão de salvar e container de saída
+            self.root.after(0, lambda: [
+                self.output_frame.pack(fill=tk.X, pady=5),
+                self.btn_salvar_limpeza.pack(fill=tk.X, pady=5)
+            ])
             
         except Exception as e:
             self.log("")
@@ -739,6 +745,24 @@ class LimpadorPlanilhaGUI:
             self.btn_processar_resumo.config(state="normal", text="📊 GERAR RESUMO AGORA")
     
     # Funções de processamento (mesmas do código anterior, adaptadas para GUI)
+    
+    def salvar_resultado_processado(self):
+        """Método para salvar o resultado após o processamento"""
+        if self.df_resultado is None:
+            messagebox.showwarning("Aviso", "Nenhum resultado processado para salvar!")
+            return
+            
+        if not self.caminho_saida.get():
+            self.selecionar_arquivo_saida()
+            
+        if self.caminho_saida.get():
+            try:
+                self.set_progress(50, "Salvando arquivo...")
+                self.salvar_planilha(self.df_resultado, self.caminho_saida.get())
+                messagebox.showinfo("Sucesso", f"Arquivo salvo com sucesso:\n{os.path.basename(self.caminho_saida.get())}")
+                self.set_progress(100, "Salvo!")
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao salvar: {e}")
     
     def criar_backup(self, caminho_arquivo):
         """Criar backup do arquivo original"""
