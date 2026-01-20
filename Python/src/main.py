@@ -141,6 +141,17 @@ class LimpadorPlanilhaGUI:
         style.configure("TLabelframe.Label", background=bg_card, foreground=accent)
         style.configure("TCheckbutton", background=bg_card, foreground=text_color)
 
+        style.configure("Stat.TLabel", 
+            background=bg_card, 
+            foreground=success, 
+            font=("Segoe UI", 16, "bold")
+        )
+        style.configure("StatDesc.TLabel", 
+            background=bg_card, 
+            foreground=text_color, 
+            font=("Segoe UI", 9)
+        )
+
     def criar_interface(self):
         """Criar interface com sidebar e páginas"""
         self.configurar_estilos()
@@ -323,6 +334,31 @@ class LimpadorPlanilhaGUI:
         info_box.pack(fill=tk.X, pady=10)
         tk.Label(info_box, text="💡 Esta função calcula automaticamente:", background="#313244", foreground="#89b4fa", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W)
         tk.Label(info_box, text="• Total de Itens (Coluna Z)\n• Total de Pedidos (Coluna B)\n• Valor Total (Z * AA)", background="#313244", foreground="#cdd6f4", justify=tk.LEFT).pack(anchor=tk.W, pady=5)
+
+        # Cards de Estatísticas
+        stats_frame = ttk.Frame(self.container_resumo, style="TFrame")
+        stats_frame.pack(fill=tk.X, pady=10)
+        
+        # Card Itens
+        self.card_itens = ttk.Frame(stats_frame, style="Card.TFrame", padding=15)
+        self.card_itens.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        ttk.Label(self.card_itens, text="ITENS TOTAL", style="StatDesc.TLabel").pack()
+        self.lbl_stat_itens = ttk.Label(self.card_itens, text="0", style="Stat.TLabel")
+        self.lbl_stat_itens.pack()
+
+        # Card Pedidos
+        self.card_pedidos = ttk.Frame(stats_frame, style="Card.TFrame", padding=15)
+        self.card_pedidos.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+        ttk.Label(self.card_pedidos, text="PEDIDOS", style="StatDesc.TLabel").pack()
+        self.lbl_stat_pedidos = ttk.Label(self.card_pedidos, text="0", style="Stat.TLabel")
+        self.lbl_stat_pedidos.pack()
+
+        # Card Valor
+        self.card_valor = ttk.Frame(stats_frame, style="Card.TFrame", padding=15)
+        self.card_valor.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        ttk.Label(self.card_valor, text="VALOR TOTAL", style="StatDesc.TLabel").pack()
+        self.lbl_stat_valor = ttk.Label(self.card_valor, text="R$ 0,00", style="Stat.TLabel")
+        self.lbl_stat_valor.pack()
 
         self.btn_processar_resumo = ttk.Button(self.container_resumo, text="📊 GERAR RESUMO AGORA", command=self.iniciar_processamento, style="Accent.TButton")
         self.btn_processar_resumo.pack(fill=tk.X, pady=20)
@@ -944,16 +980,21 @@ class LimpadorPlanilhaGUI:
             self.log(f"💰 VALOR TOTAL: R$ {valor_total:,.2f}")
             self.log("-" * 40)
             
-            self.exibir_dashboard(df_calc)
+            self.exibir_dashboard(df_calc, total_itens, pedidos_unicos, valor_total)
             self.set_progress(100, "Resumo concluído!")
 
         except Exception as e:
             self.log(f"❌ Erro no resumo: {e}")
             raise e
 
-    def exibir_dashboard(self, df):
+    def exibir_dashboard(self, df, total_itens=0, pedidos_unicos=0, valor_total=0):
         """Gera gráficos usando matplotlib e integra ao tkinter"""
         def atualizar_gui():
+            # Atualizar Labels dos Cards
+            self.lbl_stat_itens.config(text=f"{total_itens:,}".replace(",", "."))
+            self.lbl_stat_pedidos.config(text=f"{pedidos_unicos:,}".replace(",", "."))
+            self.lbl_stat_valor.config(text=f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
             if self.dashboard_canvas:
                 self.dashboard_canvas.get_tk_widget().destroy()
             
