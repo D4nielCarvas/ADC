@@ -709,22 +709,34 @@ class LimpadorPlanilhaGUI:
             # OTIMIZAÇÃO: Preparar dados para Dashboard se for o preset de Mais Vendidos
             if preset_atual and "Mais Vendidos" in preset_atual.get("nome", ""):
                  try:
-                     # BUSCA INTELIGENTE DE COLUNA DE QUANTIDADE
+                     # BUSCA INTELIGENTE DE COLUNA DE QUANTIDADE (Foco em Volume Físico)
                      col_quantidade = -1
-                     possiveis_nomes = ['Quantidade', 'Qty', 'Qtd', 'Venda', 'Total']
+                     termos_contagem = ['quantidade', 'qty', 'qtd', 'unidades', 'contagem', 'volume']
+                     termos_financeiros = ['preço', 'valor', 'total', 'r$', 'custo', 'venda_total', 'faturamento']
                      
-                     # Tenta achar pelo nome
+                     # Tenta achar pelo nome, priorizando termos de contagem e evitando financeiros
+                     melhor_score = -1
                      for i, col in enumerate(df_limpo.columns):
-                         if any(token.lower() in str(col).lower() for token in possiveis_nomes):
-                             col_quantidade = i
-                             break
+                         col_lower = str(col).lower()
+                         # Se contém termo de contagem E NÃO contém termo financeiro forte
+                         if any(t in col_lower for t in termos_contagem):
+                             if not any(f in col_lower for f in termos_financeiros if f != 'venda'):
+                                 col_quantidade = i
+                                 break
                      
-                     # Se não achou pelo nome, tenta a coluna 25 original (pode ter mudado)
+                     # Fallback se não achou com critérios rigorosos
+                     if col_quantidade == -1:
+                        for i, col in enumerate(df_limpo.columns):
+                            if any(t in str(col).lower() for t in termos_contagem):
+                                col_quantidade = i
+                                break
+
+                     # Fallback absoluto (coluna 25 ou última)
                      if col_quantidade == -1:
                          if len(df_limpo.columns) > 25: col_quantidade = 25
-                         else: col_quantidade = len(df_limpo.columns) - 1 # Última coluna como fallback
+                         else: col_quantidade = len(df_limpo.columns) - 1
                      
-                     self.log(f"📊 Gerando dashboard (Coluna detectada: {df_limpo.columns[col_quantidade]})")
+                     self.log(f"📊 Relatório Top 10: Baseado em '{df_limpo.columns[col_quantidade]}' (Volume)")
 
                      def clean_numeric(val):
                          if pd.isna(val): return 0.0
