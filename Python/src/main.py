@@ -1082,26 +1082,38 @@ class LimpadorPlanilhaGUI:
             ax.set_facecolor('#313244')
             
             try:
-                # Determina coluna de nome (geralmente a primeira após limpeza ou a 3ª na original)
-                # Na limpeza o SKU costuma ser mantido. Vamos tentar inferir.
+                # 1. Detecção Inteligente da Coluna de Nome/Produto
                 col_nome = df.columns[0]
-                if 'SKU' in df.columns: col_nome = 'SKU'
-                elif 'Produto' in df.columns: col_nome = 'Produto'
+                termos_produto = ['nome', 'produto', 'sku', 'descri', 'item', 'material']
+                for col in df.columns:
+                    if any(termo in str(col).lower() for termo in termos_produto):
+                        col_nome = col
+                        break
                 
                 if 'qty_clean' in df.columns:
-                    top_10 = df.groupby(col_nome)['qty_clean'].sum().nlargest(10)
-                    top_10.plot(kind='barh', ax=ax, color='#89b4fa')
-                    ax.set_title("Top 10 Itens por Qtd", color='#89b4fa', weight='bold')
-                    ax.invert_yaxis()
-                    plt.tight_layout()
+                    # 2. Agrupamento e Ordenação Robusta (Top 10 real)
+                    # Limpar nomes para evitar duplicatas por espaços
+                    df_plot = df.copy()
+                    df_plot[col_nome] = df_plot[col_nome].astype(str).str.strip()
                     
+                    top_10 = df_plot.groupby(col_nome)['qty_clean'].sum().sort_values(ascending=False).head(10)
+                    
+                    # Se não houver dados, avisar
+                    if top_10.empty or top_10.sum() == 0:
+                        ax.text(0.5, 0.5, "Sem dados de quantidade para exibir", ha='center', va='center', color='#f38ba8')
+                    else:
+                        top_10.plot(kind='barh', ax=ax, color='#89b4fa')
+                        ax.set_title(f"Top 10 por {col_nome}", color='#89b4fa', weight='bold', pad=15)
+                        ax.invert_yaxis()
+                        plt.tight_layout()
+                    
+                    # 3. Ordem de empilhamento: Botão primeiro (topo) para não sumir
+                    btn_expand = ttk.Button(target_container, text="🔍 EXPANDIR DASHBOARD", command=lambda f=fig: self.expandir_dashboard(f), style="Secondary.TButton")
+                    btn_expand.pack(pady=(0, 10))
+
                     canvas = FigureCanvasTkAgg(fig, master=target_container)
                     canvas.draw()
                     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-                    # Botão EXPANDIR PREMIUM
-                    btn_expand = ttk.Button(target_container, text="🔍 EXPANDIR DASHBOARD", command=lambda f=fig: self.expandir_dashboard(f), style="Secondary.TButton")
-                    btn_expand.pack(pady=5)
             except Exception as e:
                 self.log(f"⚠️ Erro no gráfico: {e}")
 
