@@ -49,7 +49,7 @@ ADC/
 ## 🔨 Desenvolvimento
 
 Para gerar um novo executável, utilize o script na pasta `scripts/`:
-- `scripts/atualizar_executavel.bat`: Gera uma nova versão do executável na pasta `dist/` (inclui o `config.json`).
+- `scripts/atualizar_executavel.bat`: Instala todas as dependências necessárias listadas em `requirements.txt`.
 
 ---
 Desenvolvido para otimizar o fluxo de trabalho com planilhas de SKU.

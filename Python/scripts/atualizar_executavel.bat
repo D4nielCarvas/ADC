@@ -1,65 +1,36 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo  ATUALIZADOR DE EXECUTAVEL
-echo  ADC
+echo  INSTALADOR DE DEPENDÊNCIAS
+echo  ADC Pro
 echo ========================================
 echo.
 
-cd ..
-
-echo [1/5] Limpando arquivos antigos...
-if exist build rd /s /q build
-if exist dist rd /s /q dist
-if exist __pycache__ rd /s /q __pycache__
-if exist *.spec del /q *.spec
-echo ✓ Limpeza concluída!
-echo.
-
-echo [2/5] Verificando Python...
+echo [1/2] Verificando Python...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERRO: Python não encontrado
+    echo ERRO: Python não encontrado no sistema.
+    echo Por favor, instale o Python 3.8 ou superior.
     pause
     exit /b 1
 )
 echo ✓ Python encontrado!
 echo.
 
-echo [3/5] Verificando dependências...
-python -m pip install --quiet --disable-pip-version-check pyinstaller pandas openpyxl xlrd matplotlib
-echo ✓ Dependências verificadas!
-echo.
-
-echo [4/5] Recompilando executável...
-echo Isso pode levar alguns minutos. Aguarde...
-echo.
-python -m PyInstaller --onefile --windowed --clean --noconfirm --name="ADC" --add-data "src/config.json;src" "src/main.py"
-
+echo [2/2] Instalando dependências (requirements.txt)...
+python -m pip install --quiet --upgrade --disable-pip-version-check -r requirements.txt
 if %errorlevel% neq 0 (
-    echo.
-    echo ERRO: Falha ao criar executável
+    echo ERRO: Falha ao instalar dependências.
     pause
     exit /b 1
 )
+echo ✓ Todas as dependências foram instaladas com sucesso!
 echo.
 
-echo [5/5] Finalizando...
-if exist build rd /s /q build
-if exist ADC.spec del /q ADC.spec
+echo ========================================
+echo  ✓ AMBIENTE PRONTO PARA USO!
+echo  Você já pode rodar o ADC via:
+echo  python src/main.py
+echo ========================================
 echo.
-
-if exist "dist\ADC.exe" (
-    echo ========================================
-    echo  ✓ EXECUTÁVEL ADC ATUALIZADO COM SUCESSO!
-    echo ========================================
-    echo.
-    echo Local: %cd%\dist\ADC.exe
-    echo.
-) else (
-    echo ERRO: Executável não foi criado
-    pause
-    exit /b 1
-)
-
 pause
