@@ -1,5 +1,5 @@
 [README.md](https://github.com/user-attachments/files/24742250/README.md)
-# 🧹 ADC - Limpador de Planilha MVSKU
+# 🧹 ADC
 
 Aplicação profissional com Interface Gráfica (GUI) para limpeza e filtragem de planilhas de produtos (Itens Mais Vendidos por SKU).
 
