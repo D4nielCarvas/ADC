@@ -1061,10 +1061,17 @@ class LimpadorPlanilhaGUI:
                     df_plot = df.copy()
                     df_plot[col_nome] = df_plot[col_nome].astype(str).str.strip().str.upper()
                     
-                    top_10 = df_plot.groupby(col_nome)['qty_clean'].sum().sort_values(ascending=False).head(10)
+                    if target_container == self.dash_container:
+                        # ABA RESUMO: Ranking por frequência de pedidos (contagem)
+                        top_10 = df_plot.groupby(col_nome).size().sort_values(ascending=False).head(10)
+                        ax.set_title("🏆 TOP 10 SKUs MAIS PEDIDOS (Frequência)", color='#89b4fa', weight='bold', pad=15)
+                    else:
+                        # FALLBACK / OUTRAS ABAS: Ranking por volume de quantidade (soma)
+                        top_10 = df_plot.groupby(col_nome)['qty_clean'].sum().sort_values(ascending=False).head(10)
+                        ax.set_title(f"Top 10 por {col_nome} (Volume)", color='#89b4fa', weight='bold', pad=15)
                     
                     # Se não houver dados, avisar
-                    if top_10.empty or top_10.sum() == 0:
+                    if top_10.empty:
                         ax.text(0.5, 0.5, "Sem dados de quantidade para exibir", ha='center', va='center', color='#f38ba8')
                     else:
                         top_10.plot(kind='barh', ax=ax, color='#89b4fa')
