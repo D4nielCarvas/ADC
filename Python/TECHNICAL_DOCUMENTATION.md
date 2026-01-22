@@ -14,8 +14,9 @@ O sistema é construído inteiramente em **Python 3.8+**, utilizando uma abordag
 
 ---
 
-## 📱 A Classe Principal: `LimpadorPlanilhaGUI`
-Localizada em `src/main.py`, esta classe gerencia todo o ciclo de vida da aplicação.
+## 📱 Arquitetura de Classes
+- **`LimpadorPlanilhaGUI`** (`src/main.py`): Gerencia a interface gráfica, eventos e exibição de dados. Delega o processamento pesado para a classe lógica.
+- **`ADCLogic`** (`src/core_logic.py`): Centraliza toda a regra de negócios, incluindo validação, carregamento, limpeza e filtros. Garante reutilização entre GUI e outros possíveis frontends.
 
 ### 1. Inicialização e Estado (`__init__`)
 - Configura a janela raiz, variáveis de estado (`tk.StringVar`, `tk.BooleanVar`) e o cache dinâmico de arquivos Excel para evitar leituras repetitivas do disco.
@@ -34,8 +35,8 @@ Implementa um sistema de **Fallback Automático**:
 2. Se falhar (devido a corrupção de cabeçalho ou formato não padrão), tenta o motor alternativo.
 3. Para arquivos `.xls`, utiliza a flag `ignore_workbook_corruption=True`.
 
-### O Ciclo de Limpeza (`processar_planilha`)
-O processamento segue um pipeline linear:
+### O Ciclo de Limpeza (`ADCLogic.processar_limpeza`)
+O processamento segue um pipeline linear dentro da classe lógica:
 1. **Validação**: Verifica se o arquivo existe e se os índices de colunas solicitados são válidos no DataFrame atual.
 2. **Deleção**: Remove as colunas baseadas nos índices (convertendo de base 1 para base 0).
 3. **Filtros Adicionais**:

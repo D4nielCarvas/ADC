@@ -2,7 +2,16 @@
 
 Todas as alterações notáveis neste projeto serão documentadas neste arquivo.
 
-## [2.5 Pro] - 2026-01-20
+## [2.6 Refactor] - 2026-01-22
+### Arquitetura
+- **Centralização de Lógica**: Movida toda a regra de negócios para `ADCLogic` em `core_logic.py`.
+- **Refatoração Main**: `main.py` agora atua apenas como camada de visualização (View).
+
+### Visual (UI/UX)
+- **Tema Catppuccin Mocha**: Nova paleta de cores moderna (Dark Mode suave).
+- **Design Flat**: Elementos de interface planos com espaçamento generoso e tipografia Segoe UI.
+- **KPI Cards**: Visualização de estatísticas em cartões destacados.
+
 ### Adicionado
 - **Ranking de SKUs Mais Pedidos**: Novo dashboard na aba de Resumo focado na frequência de pedidos.
 - **Modo Cinema**: Botão "EXPANDIR DASHBOARD" para visualização cinematográfica em tela cheia.

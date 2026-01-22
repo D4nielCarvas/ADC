@@ -22,6 +22,7 @@ ADC/
 ├── scripts/            # Automação e builds (.bat)
 ├── src/                # Código-fonte Python
 │   ├── main.py         # Arquivo principal (GUI)
+│   ├── core_logic.py   # Lógica central (ADCLogic)
 │   └── config.json     # Definições de Presets
 ├── CHANGELOG.md        # Histórico de versões
 └── README.md           # Esta documentação

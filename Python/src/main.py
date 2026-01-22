@@ -1,28 +1,16 @@
-"""
-Script para limpeza de planilha de itens mais vendidos por SKU
-Versão com Interface Gráfica (GUI) usando tkinter
-"""
-
 import pandas as pd
 import os
-import json
-from datetime import datetime
-import shutil
 import tkinter as tk
 from tkinter import filedialog, scrolledtext, messagebox
 from tkinter import ttk
 import threading
-import xlrd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from datetime import datetime
+from core_logic import ADCLogic
 
 
 class LimpadorPlanilhaGUI:
-    """
-    MELHORIA GUI: Interface gráfica para facilitar o uso do script
-    O usuário pode selecionar arquivos visualmente e acompanhar o progresso
-    """
-    
     def __init__(self, root):
         self.root = root
         self.root.title("ADC v2.5 Pro")
@@ -41,8 +29,11 @@ class LimpadorPlanilhaGUI:
         self.log_limpeza = None   # Buffer para log de limpeza
         self.log_resumo = None    # Buffer para log de resumo
         
+        # Lógica central
+        self.logic = ADCLogic()
+
         # Novas Variáveis Multi-Relatório
-        self.presets = self.carregar_presets()
+        self.presets = self.logic.presets
         self.nome_preset = tk.StringVar()
         self.aba_selecionada = tk.StringVar()
         self.coluna_valor_selecionada = tk.StringVar()
@@ -60,7 +51,6 @@ class LimpadorPlanilhaGUI:
         self.criar_interface()
         
     def carregar_presets(self):
-        """Carregar presets do arquivo config.json"""
         caminho_config = os.path.join(os.path.dirname(__file__), "config.json")
         if os.path.exists(caminho_config):
             try:
@@ -71,88 +61,149 @@ class LimpadorPlanilhaGUI:
         return []
         
     def configurar_estilos(self):
-        """Configurar o tema moderno do aplicativo"""
+        """Configurar o tema moderno do aplicativo (Catppuccin Mocha Inspired)"""
         style = ttk.Style()
         
-        # Cores do Tema (Modern Dark)
-        bg_dark = "#1e1e2e"
-        bg_card = "#313244"
-        accent = "#89b4fa"      
-        success = "#a6e3a1"     
-        warning = "#fab387"     
-        text_color = "#cdd6f4"
-        entry_bg = "#45475a"
-        sidebar_bg = "#181825"
+        # --- PALETA DE CORES (Catppuccin Mocha) ---
+        self.colors = {
+            "base": "#1e1e2e",       # Fundo Principal
+            "mantle": "#181825",     # Sidebar / Fundo Secundário
+            "crust": "#11111b",      # Inputs / Logs
+            "surface0": "#313244",   # Cards Baixos
+            "surface1": "#45475a",   # Cards Altos / Hover
+            "overlay0": "#6c7086",   # Bordas sutis
+            "text": "#cdd6f4",       # Texto Principal
+            "subtext": "#a6adc8",    # Texto Secundário
+            "mauve": "#cba6f7",      # Acento Principal (Roxo Suave)
+            "blue": "#89b4fa",       # Acento Secundário (Azul)
+            "green": "#a6e3a1",      # Sucesso
+            "red": "#f38ba8",        # Erro
+            "peach": "#fab387",      # Aviso
+            "sapphire": "#74c7ec",   # Detalhes
+        }
 
+        self.root.configure(bg=self.colors["base"])
         style.theme_use('clam')
         
-        # Estilos Gerais
-        style.configure("TFrame", background=bg_dark)
-        style.configure("Sidebar.TFrame", background=sidebar_bg)
-        style.configure("Card.TFrame", background=bg_card, relief="flat")
+        # --- CONFIGURAÇÃO DE ESTILOS TTK ---
         
+        # 1. Frames e Containers
+        style.configure("TFrame", background=self.colors["base"])
+        style.configure("Sidebar.TFrame", background=self.colors["mantle"])
+        style.configure("Card.TFrame", background=self.colors["surface0"], relief="flat", borderwidth=0)
+        
+        # 2. Labels
         style.configure("TLabel", 
-            background=bg_dark, 
-            foreground=text_color, 
+            background=self.colors["base"], 
+            foreground=self.colors["text"], 
+            font=("Segoe UI", 10)
+        )
+        style.configure("Card.TLabel",
+            background=self.colors["surface0"], 
+            foreground=self.colors["text"],
             font=("Segoe UI", 10)
         )
         
+        # Títulos
         style.configure("Title.TLabel", 
-            background=sidebar_bg, 
-            foreground=accent, 
-            font=("Segoe UI", 20, "bold")
+            background=self.colors["mantle"], 
+            foreground=self.colors["mauve"], 
+            font=("Segoe UI", 22, "bold")
         )
-        
         style.configure("Header.TLabel", 
-            background=bg_card, 
-            foreground=accent, 
-            font=("Segoe UI", 11, "bold")
+            background=self.colors["surface0"], 
+            foreground=self.colors["blue"], 
+            font=("Segoe UI", 12, "bold")
+        )
+        style.configure("Sub.TLabel",
+            background=self.colors["base"],
+            foreground=self.colors["subtext"],
+            font=("Segoe UI", 9)
         )
 
+        # 3. Botões de Navegação (Sidebar)
         style.configure("Nav.TButton", 
-            padding=10, 
+            padding=(20, 12), 
             font=("Segoe UI", 11),
-            background=sidebar_bg,
-            foreground=text_color,
-            anchor="w"
+            background=self.colors["mantle"],
+            foreground=self.colors["subtext"], 
+            anchor="w",
+            borderwidth=0
         )
         style.map("Nav.TButton",
-            background=[('active', '#313244'), ('pressed', accent)],
-            foreground=[('active', accent)]
+            background=[('active', self.colors["surface0"]), ('pressed', self.colors["surface1"])],
+            foreground=[('active', self.colors["mauve"])]
         )
 
+        # 4. Botões de Ação (Accent)
         style.configure("Accent.TButton", 
-            padding=10, 
+            padding=(15, 12), 
             font=("Segoe UI", 11, "bold"),
-            background=accent,
-            foreground="#11111b"
+            background=self.colors["mauve"],
+            foreground=self.colors["crust"], 
+            borderwidth=0,
+            relief="flat"
         )
         style.map("Accent.TButton",
-            background=[('active', '#b4befe'), ('pressed', '#74c7ec')]
+            background=[('active', '#d0bef9'), ('pressed', '#bfa0e8')]
         )
 
+        # 5. Botões Secundários
         style.configure("Secondary.TButton", 
-            padding=5, 
+            padding=(10, 8), 
             font=("Segoe UI", 9),
-            background=entry_bg,
-            foreground=text_color
+            background=self.colors["surface1"],
+            foreground=self.colors["text"],
+            borderwidth=0
+        )
+        style.map("Secondary.TButton",
+            background=[('active', '#585b70')]
         )
         
-        style.configure("TEntry", fieldbackground=entry_bg, foreground=text_color)
-        style.configure("TCombobox", fieldbackground=entry_bg, background=bg_card, foreground=text_color)
-        style.configure("TLabelframe", background=bg_card, foreground=accent, font=("Segoe UI", 10, "bold"))
-        style.configure("TLabelframe.Label", background=bg_card, foreground=accent)
-        style.configure("TCheckbutton", background=bg_card, foreground=text_color)
+        # 6. Inputs e Widgets
+        style.configure("TEntry", 
+            fieldbackground=self.colors["crust"], 
+            foreground=self.colors["text"],
+            insertcolor=self.colors["text"],
+            borderwidth=0,
+            padding=5
+        )
+        
+        style.configure("TCombobox", 
+            fieldbackground=self.colors["crust"], 
+            background=self.colors["surface0"], 
+            foreground=self.colors["text"],
+            arrowcolor=self.colors["mauve"],
+            borderwidth=0
+        )
+        # Hack para Combobox ficar escura no drop
+        self.root.option_add('*TCombobox*Listbox.background', self.colors["crust"])
+        self.root.option_add('*TCombobox*Listbox.foreground', self.colors["text"])
+        self.root.option_add('*TCombobox*Listbox.selectBackground', self.colors["mauve"])
+        self.root.option_add('*TCombobox*Listbox.selectForeground', self.colors["crust"])
 
+        # 7. LabelFrames
+        style.configure("TLabelframe", 
+            background=self.colors["surface0"], 
+            foreground=self.colors["blue"], 
+            font=("Segoe UI", 10, "bold"),
+            borderwidth=1,
+            relief="solid",
+            bordercolor=self.colors["surface1"]
+        )
+        style.configure("TLabelframe.Label", background=self.colors["surface0"], foreground=self.colors["blue"])
+        style.configure("TCheckbutton", background=self.colors["surface0"], foreground=self.colors["text"])
+
+        # 8. Stats Cards (Resumo)
         style.configure("Stat.TLabel", 
-            background=bg_card, 
-            foreground=success, 
-            font=("Segoe UI", 16, "bold")
+            background=self.colors["surface0"], 
+            foreground=self.colors["green"], 
+            font=("Segoe UI", 24, "bold")
         )
         style.configure("StatDesc.TLabel", 
-            background=bg_card, 
-            foreground=text_color, 
-            font=("Segoe UI", 9)
+            background=self.colors["surface0"], 
+            foreground=self.colors["subtext"], 
+            font=("Segoe UI", 10, "bold")
         )
 
     def criar_interface(self):
@@ -160,31 +211,38 @@ class LimpadorPlanilhaGUI:
         self.configurar_estilos()
         
         # Layout Principal
-        self.sidebar = ttk.Frame(self.root, style="Sidebar.TFrame", width=200)
+        self.sidebar = ttk.Frame(self.root, style="Sidebar.TFrame", width=260) # Sidebar mais larga
         self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
         self.sidebar.pack_propagate(False)
 
-        self.main_content = ttk.Frame(self.root, padding="30")
+        self.main_content = ttk.Frame(self.root, style="TFrame", padding="40") # Mais padding no conteúdo
         self.main_content.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # --- SIDEBAR CONTENT ---
-        ttk.Label(self.sidebar, text="✨ ADC", style="Title.TLabel").pack(pady=(30, 10), padx=20, anchor="w")
-        ttk.Label(self.sidebar, text="PRO VERSION", font=("Segoe UI", 8, "bold"), foreground="#585b70", background="#181825").pack(padx=20, anchor="w", pady=(0, 40))
+        # Logo Area
+        logo_area = ttk.Frame(self.sidebar, style="Sidebar.TFrame", padding=(20, 40, 20, 20))
+        logo_area.pack(fill=tk.X)
+        ttk.Label(logo_area, text="✨ ADC", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(logo_area, text="Advanced Data Cleaner", font=("Segoe UI", 9), foreground=self.colors["subtext"], background=self.colors["mantle"]).pack(anchor="w")
 
-        self.btn_nav_limpeza = ttk.Button(self.sidebar, text="🧹 Limpeza", style="Nav.TButton", command=lambda: self.mudar_pagina("limpeza"))
-        self.btn_nav_limpeza.pack(fill=tk.X, padx=10, pady=2)
+        # Nav Buttons
+        nav_frame = ttk.Frame(self.sidebar, style="Sidebar.TFrame")
+        nav_frame.pack(fill=tk.X, pady=20)
 
-        self.btn_nav_resumo = ttk.Button(self.sidebar, text="📊 Resumo", style="Nav.TButton", command=lambda: self.mudar_pagina("resumo"))
-        self.btn_nav_resumo.pack(fill=tk.X, padx=10, pady=2)
+        self.btn_nav_limpeza = ttk.Button(nav_frame, text="   🧹  Limpeza", style="Nav.TButton", command=lambda: self.mudar_pagina("limpeza"))
+        self.btn_nav_limpeza.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_nav_config = ttk.Button(self.sidebar, text="⚙️ Configurações", style="Nav.TButton", command=lambda: self.mudar_pagina("config"))
-        self.btn_nav_config.pack(fill=tk.X, padx=10, pady=2)
+        self.btn_nav_resumo = ttk.Button(nav_frame, text="   📊  Resumo", style="Nav.TButton", command=lambda: self.mudar_pagina("resumo"))
+        self.btn_nav_resumo.pack(fill=tk.X, padx=10, pady=5)
+
+        self.btn_nav_config = ttk.Button(nav_frame, text="   ⚙️  Configurações", style="Nav.TButton", command=lambda: self.mudar_pagina("config"))
+        self.btn_nav_config.pack(fill=tk.X, padx=10, pady=5)
 
         # Espaçador inferior
         ttk.Frame(self.sidebar, style="Sidebar.TFrame").pack(fill=tk.BOTH, expand=True)
 
         self.btn_full = ttk.Button(self.sidebar, text="🔲 Tela Cheia", command=self.toggle_fullscreen, style="Secondary.TButton")
-        self.btn_full.pack(fill=tk.X, padx=10, pady=5)
+        self.btn_full.pack(fill=tk.X, padx=20, pady=20)
         self.root.bind("<F11>", lambda e: self.toggle_fullscreen())
 
         # --- CONTAINERS DE PÁGINAS ---
@@ -204,8 +262,8 @@ class LimpadorPlanilhaGUI:
         self.progress_bar.pack(fill=tk.X)
         self.progress_bar.pack_forget() # Oculta inicialmente
 
-        # Log e Status
-        self.status_label = tk.Label(self.root, text="✨ Sistema Pronto", bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor=tk.W, padx=10, pady=3)
+        # Log e Status (Barra inferior embutida no conteúdo principal)
+        self.status_label = tk.Label(self.root, text="✨ Sistema Pronto", bg=self.colors["mantle"], fg=self.colors["subtext"], font=("Segoe UI", 9), anchor=tk.W, padx=15, pady=5)
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
 
         self.mudar_pagina("limpeza")
@@ -221,8 +279,10 @@ class LimpadorPlanilhaGUI:
             self.container_resumo.pack_forget()
             self.container_config.pack_forget()
             
-            # Reset visual dos botões da sidebar (opcional: destacar o ativo)
-            
+            # Reset visual dos botões
+            style = ttk.Style()
+            # Reset não é trivial no tkinter stock, mas vamos focar no conteúdo
+
             if pagina == "limpeza":
                 self.container_limpeza.pack(fill=tk.BOTH, expand=True)
                 self.status_label.config(text="✨ Modo Limpeza Ativo")
@@ -246,77 +306,92 @@ class LimpadorPlanilhaGUI:
         # Pequeno delay para suavizar
         self.root.after(50, efeito_transicao)
 
-    def montar_pagina_header(self, parent, titulo, icone):
+    def montar_pagina_header(self, parent, titulo, icone, subtitulo=""):
         header = ttk.Frame(parent)
-        header.pack(fill=tk.X, pady=(0, 20))
-        ttk.Label(header, text=f"{icone} {titulo}", font=("Segoe UI", 18, "bold"), foreground="#89b4fa").pack(side=tk.LEFT)
+        header.pack(fill=tk.X, pady=(0, 30))
+        
+        # Icone grande se possivel? Não, texto mesmo.
+        ttk.Label(header, text=f"{icone}  {titulo}", font=("Segoe UI", 26, "bold"), foreground=self.colors["text"]).pack(anchor="w")
+        if subtitulo:
+            ttk.Label(header, text=subtitulo, style="Sub.TLabel").pack(anchor="w", pady=(5, 0))
 
     def montar_pagina_limpeza(self):
         """Constrói os widgets da página de limpeza"""
-        self.montar_pagina_header(self.container_limpeza, "Limpeza de Planilhas", "🧹")
+        self.montar_pagina_header(self.container_limpeza, "Limpeza de Planilhas", "🧹", "Processamento e higienização automática de dados.")
         
         # Card Arquivos
-        file_card = ttk.Frame(self.container_limpeza, style="Card.TFrame", padding=15)
-        file_card.pack(fill=tk.X, pady=5)
-        ttk.Label(file_card, text="📂 ARQUIVOS", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 10))
+        file_card = ttk.Frame(self.container_limpeza, style="Card.TFrame", padding=20)
+        file_card.pack(fill=tk.X, pady=10)
+        ttk.Label(file_card, text="ARQUIVO DE ENTRADA", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 15))
 
         # Entrada
         input_frame = ttk.Frame(file_card, style="Card.TFrame")
-        input_frame.pack(fill=tk.X, pady=5)
-        tk.Label(input_frame, text="Entrada:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
-        ttk.Entry(input_frame, textvariable=self.caminho_entrada, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
-        ttk.Button(input_frame, text="📁", width=3, command=self.selecionar_arquivo_entrada, style="Secondary.TButton").pack(side=tk.LEFT)
-
-        # Saída (REMOVIDO DO INICIO - SERÁ MOSTRADO NO FINAL)
-        self.output_frame = ttk.Frame(file_card, style="Card.TFrame")
-        # self.output_frame.pack(fill=tk.X, pady=5) # Oculto inicialmente
-        tk.Label(self.output_frame, text="Salvar em:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
-        ttk.Entry(self.output_frame, textvariable=self.caminho_saida, font=("Segoe UI", 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
-        ttk.Button(self.output_frame, text="💾", width=3, command=self.selecionar_arquivo_saida, style="Secondary.TButton").pack(side=tk.LEFT)
+        input_frame.pack(fill=tk.X)
+        
+        # Container de Input estiloso
+        entry_container = ttk.Frame(input_frame, style="Card.TFrame") # Wrapper
+        entry_container.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        ttk.Entry(entry_container, textvariable=self.caminho_entrada, font=("Segoe UI", 10)).pack(fill=tk.X, ipady=5)
+        
+        ttk.Button(input_frame, text="� Selecionar", width=12, command=self.selecionar_arquivo_entrada, style="Accent.TButton").pack(side=tk.LEFT, padx=(15, 0))
 
         # Configurações
-        config_card = ttk.Frame(self.container_limpeza, style="Card.TFrame", padding=15)
-        config_card.pack(fill=tk.X, pady=15)
-        ttk.Label(config_card, text="⚙️ CONFIGURAÇÕES", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 10))
+        config_card = ttk.Frame(self.container_limpeza, style="Card.TFrame", padding=20)
+        config_card.pack(fill=tk.X, pady=20)
+        ttk.Label(config_card, text="REGRAS DE LIMPEZA", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 15))
 
-        row1 = ttk.Frame(config_card, style="Card.TFrame")
-        row1.pack(fill=tk.X, pady=5)
-        tk.Label(row1, text="Preset:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
-        self.preset_combo = ttk.Combobox(row1, textvariable=self.nome_preset, values=[p["nome"] for p in self.presets], state="readonly", width=25)
-        self.preset_combo.pack(side=tk.LEFT, padx=10)
+        grid = ttk.Frame(config_card, style="Card.TFrame")
+        grid.pack(fill=tk.X)
+        
+        # Linha 1
+        ttk.Label(grid, text="Preset de Configuração", style="Card.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ttk.Label(grid, text="Aba da Planilha", style="Card.TLabel").grid(row=0, column=1, sticky="w", pady=(0, 5), padx=20)
+        
+        self.preset_combo = ttk.Combobox(grid, textvariable=self.nome_preset, values=[p["nome"] for p in self.presets], state="readonly", width=30)
+        self.preset_combo.grid(row=1, column=0, sticky="ew", ipady=3)
         self.preset_combo.bind("<<ComboboxSelected>>", self.aplicar_preset)
 
-        tk.Label(row1, text="Aba:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT, padx=15)
-        self.aba_combo = ttk.Combobox(row1, textvariable=self.aba_selecionada, state="readonly", width=15)
-        self.aba_combo.pack(side=tk.LEFT, padx=10)
+        self.aba_combo = ttk.Combobox(grid, textvariable=self.aba_selecionada, state="readonly", width=20)
+        self.aba_combo.grid(row=1, column=1, sticky="ew", padx=20, ipady=3)
         self.aba_combo.bind("<<ComboboxSelected>>", self.atualizar_colunas_aba)
 
-        row2 = ttk.Frame(config_card, style="Card.TFrame")
-        row2.pack(fill=tk.X, pady=10)
-        tk.Label(row2, text="Deletar Colunas:", background="#313244", foreground="#cdd6f4").pack(side=tk.LEFT)
-        self.indices_entry = ttk.Entry(row2, width=30)
-        self.indices_entry.pack(side=tk.LEFT, padx=10)
+        # Linha 2
+        ttk.Label(grid, text="Colunas Para Deletar (Índices)", style="Card.TLabel").grid(row=2, column=0, sticky="w", pady=(20, 5))
+        self.indices_entry = ttk.Entry(grid, width=30)
+        self.indices_entry.grid(row=3, column=0, columnspan=2, sticky="ew", ipady=3)
+        ttk.Label(grid, text="Ex: 1, 2, 5 (Separado por vírgula)", style="Sub.TLabel", background=self.colors["surface0"]).grid(row=4, column=0, sticky="w")
 
-        # Refinamento
-        filters_card = ttk.LabelFrame(self.container_limpeza, text=" ✨ REFINAMENTO ", padding=10, style="TLabelframe")
-        filters_card.pack(fill=tk.X, pady=5)
-        f_grid = ttk.Frame(filters_card, style="Card.TFrame")
-        f_grid.pack(fill=tk.X)
-        ttk.Checkbutton(f_grid, text="🔄 Duplicadas", variable=self.remover_duplicadas).grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
-        ttk.Checkbutton(f_grid, text="🗑️ Vazias", variable=self.remover_vazias).grid(row=0, column=1, sticky=tk.W, padx=10, pady=5)
+        # Refinamento (Checkboxes)
+        chk_frame = ttk.Frame(config_card, style="Card.TFrame")
+        chk_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        ttk.Checkbutton(chk_frame, text="Remover Duplicadas", variable=self.remover_duplicadas).pack(side=tk.LEFT, padx=(0, 20))
+        ttk.Checkbutton(chk_frame, text="Remover Linhas Vazias", variable=self.remover_vazias).pack(side=tk.LEFT)
 
-        self.btn_processar_limpeza = ttk.Button(self.container_limpeza, text="🚀 INICIAR LIMPEZA", command=self.iniciar_processamento, style="Accent.TButton")
-        self.btn_processar_limpeza.pack(fill=tk.X, pady=10)
+        # Ações
+        action_frame = ttk.Frame(self.container_limpeza)
+        action_frame.pack(fill=tk.X, pady=10)
+        
+        self.btn_processar_limpeza = ttk.Button(action_frame, text="🚀  INICIAR PROCESSAMENTO", command=self.iniciar_processamento, style="Accent.TButton")
+        self.btn_processar_limpeza.pack(side=tk.RIGHT)
 
-        # Botão de Salvamento (Aparece após processar)
-        self.btn_salvar_limpeza = ttk.Button(self.container_limpeza, text="💾 SALVAR PLANILHA LIMPA", command=self.salvar_resultado_processado, style="Secondary.TButton")
-        # self.btn_salvar_limpeza.pack_forget() # Oculto
+        # Output e Save (Inicialmente ocultos)
+        self.output_frame = ttk.Frame(file_card, style="Card.TFrame", padding=(0, 20, 0, 0))
+        # self.output_frame.pack(fill=tk.X) 
+        
+        ttk.Label(self.output_frame, text="SALVAR RESULTADO EM", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 10))
+        save_inner = ttk.Frame(self.output_frame, style="Card.TFrame")
+        save_inner.pack(fill=tk.X)
+        self.entry_saida = ttk.Entry(save_inner, textvariable=self.caminho_saida, font=("Segoe UI", 10))
+        self.entry_saida.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=5)
+        self.btn_salvar_limpeza = ttk.Button(save_inner, text="💾 Salvar", command=self.salvar_resultado_processado, style="Accent.TButton")
+        self.btn_salvar_limpeza.pack(side=tk.LEFT, padx=(10, 0))
 
-        # Log que ocupa o espaço inferior
+        # Log
         self.log_limpeza = self.montar_log(self.container_limpeza)
 
     def montar_pagina_resumo(self):
-        """Constrói os widgets da página de resumo"""
         self.montar_pagina_header(self.container_resumo, "Resumo de Pedidos", "📊")
 
         file_card = ttk.Frame(self.container_resumo, style="Card.TFrame", padding=15)
@@ -417,7 +492,7 @@ class LimpadorPlanilhaGUI:
         if nome:
             novo = {"nome": nome, "deletar": "", "tipo": "limpeza"}
             self.presets.append(novo)
-            self.salvar_presets()
+            self.logic.salvar_presets(self.presets)
             self.atualizar_lista_presets_config()
             self.preset_combo['values'] = [p["nome"] for p in self.presets]
             messagebox.showinfo("Sucesso", f"Preset '{nome}' criado!")
@@ -434,18 +509,13 @@ class LimpadorPlanilhaGUI:
         
         if messagebox.askyesno("Confirmar", f"Deseja excluir o preset '{nome}'?"):
             del self.presets[index]
-            self.salvar_presets()
+            ok, msg = self.logic.salvar_presets(self.presets)
+            if not ok:
+                 messagebox.showerror("Erro", msg)
             self.atualizar_lista_presets_config()
             self.preset_combo['values'] = [p["nome"] for p in self.presets]
 
-    def salvar_presets(self):
-        """Salva a lista atual de presets no config.json"""
-        try:
-            caminho = os.path.join(os.path.dirname(__file__), "config.json")
-            with open(caminho, 'w', encoding='utf-8') as f:
-                json.dump({"presets": self.presets}, f, indent=4, ensure_ascii=False)
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao salvar presets: {e}")
+    # Método salvar_presets foi removido (agora em ADCLogic)
 
     def atualizar_lista_presets_config(self):
         """Atualiza a listagem visual de presets na página de config"""
@@ -454,10 +524,18 @@ class LimpadorPlanilhaGUI:
             self.preset_listbox.insert(tk.END, f" {p['nome']} ({p.get('tipo', 'limpeza')})")
 
     def montar_log(self, parent):
-        log_frame = ttk.Frame(parent)
+        log_frame = ttk.Frame(parent, padding=(0, 20, 0, 0))
         log_frame.pack(fill=tk.BOTH, expand=True)
-        widget = scrolledtext.ScrolledText(log_frame, height=5, font=("Consolas", 10), bg="#11111b", fg="#a6e3a1", borderwidth=0, padx=10, pady=10)
-        widget.pack(fill=tk.BOTH, expand=False, pady=5)
+        
+        ttk.Label(log_frame, text="DIÁRIO DE ATIVIDADES", style="Header.TLabel").pack(anchor=tk.W, pady=(0, 5))
+        
+        widget = scrolledtext.ScrolledText(log_frame, height=5, font=("Consolas", 9), 
+            bg=self.colors["crust"], 
+            fg=self.colors["green"], 
+            borderwidth=0, 
+            padx=10, pady=10
+        )
+        widget.pack(fill=tk.BOTH, expand=True)
         return widget
 
     def toggle_fullscreen(self):
@@ -500,23 +578,12 @@ class LimpadorPlanilhaGUI:
         if not arquivo or not aba: return
 
         try:
-            # Tenta carregar apenas o cabeçalho para ser rápido
-            try:
-                if arquivo.lower().endswith('.xls'):
-                    df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='xlrd')
-                    df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='xlrd')
-                else:
-                    df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine='openpyxl')
-                    df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine='openpyxl')
-            except Exception:
-                # FALLBACK: Tenta o motor oposto
-                engine_alt = 'openpyxl' if arquivo.lower().endswith('.xls') else 'xlrd'
-                self.log(f"⚠️ Tentando motor alternativo ({engine_alt}) para colunas...")
-                df_temp = pd.read_excel(arquivo, sheet_name=aba, nrows=0, engine=engine_alt)
-                df_exemplo = pd.read_excel(arquivo, sheet_name=aba, nrows=5, engine=engine_alt)
-            
+            # Usa o listar_abas do logic (que usa cache) para pegar info basica ou ler header
+            # Mas aqui precisamos das colunas.
+            # Vamos simplificar e ler apenas o header
+            df_temp = self.logic.carregar_planilha(arquivo, aba)
             self.lista_colunas = list(df_temp.columns)
-            
+
         except Exception as e:
             self.log(f"⚠ Erro ao ler colunas da aba: {e}")
 
@@ -532,24 +599,10 @@ class LimpadorPlanilhaGUI:
             self.caminho_entrada.set(arquivo)
             
             # Carregar abas dinamicamente com OTIMIZAÇÃO (Cache)
+            # Carregar abas dinamicamente com OTIMIZAÇÃO (Cache)
             try:
-                if arquivo in self.cache_excel:
-                    self.log(f"⚡ Usando cache para: {os.path.basename(arquivo)}")
-                    excel_file = self.cache_excel[arquivo]
-                else:
-                    self.set_progress(20, "Lendo estrutura do arquivo...")
-                    try:
-                        if arquivo.lower().endswith('.xls'):
-                            excel_file = pd.ExcelFile(arquivo, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
-                        else:
-                            excel_file = pd.ExcelFile(arquivo, engine='openpyxl')
-                    except Exception as e:
-                        # FALLBACK AUTOMÁTICO
-                        engine_alt = 'openpyxl' if arquivo.lower().endswith('.xls') else 'xlrd'
-                        self.log(f"⚠️ Motor primário falhou. Tentando {engine_alt}...")
-                        excel_file = pd.ExcelFile(arquivo, engine=engine_alt)
-                    
-                    self.cache_excel[arquivo] = excel_file
+                # Usa método padronizado do logic que já trara cache
+                self.lista_abas = self.logic.listar_abas(arquivo, log_callback=self.log)
                 
                 self.lista_abas = excel_file.sheet_names
                 
@@ -754,205 +807,9 @@ class LimpadorPlanilhaGUI:
                 messagebox.showerror("Erro", f"Erro ao salvar: {e}")
     
     
-    def validar_arquivo_entrada(self, caminho):
-        """Validar se o arquivo de entrada existe"""
-        if not os.path.exists(caminho):
-            raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
-        
-        if not os.path.isfile(caminho):
-            raise ValueError(f"O caminho especificado não é um arquivo: {caminho}")
-        
-        self.log(f"✓ Arquivo de entrada encontrado: {os.path.basename(caminho)}")
-        return True
+    # Métodos de entrada/carregamento removidos (Delegado para ADCLogic)
     
-    def carregar_planilha(self, caminho):
-        """Carregar planilha do Excel com aba específica, tratando corrupção em .xls"""
-        try:
-            aba = self.aba_selecionada.get()
-            self.log(f"   Aba selecionada: {aba}")
-            
-            try:
-                if caminho.lower().endswith('.xls'):
-                    # Motor xlrd com flag para ignorar corrupções leves de cabeçalho
-                    df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
-                else:
-                    df = pd.read_excel(caminho, sheet_name=aba, engine='openpyxl')
-            except Exception as e:
-                # FALLBACK AUTOMÁTICO DE MOTOR
-                engine_alt = 'openpyxl' if caminho.lower().endswith('.xls') else 'xlrd'
-                self.log(f"⚠️ Falha no motor primário ({e}). Tentando {engine_alt}...")
-                
-                if engine_alt == 'xlrd':
-                    df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd', engine_kwargs={'ignore_workbook_corruption': True})
-                else:
-                    df = pd.read_excel(caminho, sheet_name=aba, engine='openpyxl')
-                
-            self.log(f"✓ Planilha carregada: {len(df)} linhas, {len(df.columns)} colunas")
-            return df
-        except Exception as e:
-            raise Exception(f"Erro ao carregar planilha: {e}")
-    
-    def validar_indices_colunas(self, df, indices):
-        """Validar se os índices das colunas são válidos"""
-        total_colunas = len(df.columns)
-        indices_invalidos = [i for i in indices if i >= total_colunas or i < 0]
-        
-        if indices_invalidos:
-            raise ValueError(
-                f"Índices de colunas inválidos: {indices_invalidos}. "
-                f"A planilha tem apenas {total_colunas} colunas (índices 0-{total_colunas-1})"
-            )
-        
-        self.log(f"✓ Índices de colunas validados: {indices}")
-        return True
-    
-    def deletar_colunas(self, df, indices):
-        """Deletar colunas especificadas (pelo índice atual no DataFrame)"""
-        try:
-            validador_indices = [i for i in indices if i < len(df.columns)]
-            colunas_deletar = [df.columns[i] for i in validador_indices]
-            self.log(f"✓ Deletando colunas: {colunas_deletar}")
-            
-            df_limpo = df.drop(df.columns[validador_indices], axis=1)
-            
-            self.log(f"✓ Colunas removidas com sucesso")
-            self.log(f"  Colunas restantes: {len(df_limpo.columns)}")
-            
-            return df_limpo
-        except Exception as e:
-            raise Exception(f"Erro ao deletar colunas: {e}")
-    
-    def aplicar_filtros_adicionais(self, df):
-        """Aplicar todos os filtros adicionais selecionados pelo usuário"""
-        linhas_iniciais = len(df)
-        
-        # Filtro 1: Remover linhas duplicadas
-        if self.remover_duplicadas.get():
-            df = self.filtro_remover_duplicadas(df)
-        
-        # Filtro 2: Remover linhas vazias/incompletas
-        if self.remover_vazias.get():
-            df = self.filtro_remover_vazias(df)
-        
-        # Filtro 3: Filtrar por valor mínimo
-        if self.filtrar_por_valor.get():
-            df = self.filtro_por_valor_minimo(df)
-        
-        # Filtro 4: Filtrar por texto/SKU/Categoria
-        if self.filtrar_por_texto.get():
-            df = self.filtro_por_texto(df)
-        
-        linhas_finais = len(df)
-        linhas_removidas = linhas_iniciais - linhas_finais
-        
-        self.log(f"✓ Filtros aplicados com sucesso")
-        self.log(f"  Linhas removidas pelos filtros: {linhas_removidas}")
-        self.log(f"  Linhas restantes: {linhas_finais}")
-        
-        return df
-    
-    def filtro_remover_duplicadas(self, df):
-        """Remover linhas duplicadas"""
-        linhas_antes = len(df)
-        df_sem_dup = df.drop_duplicates()
-        duplicadas_removidas = linhas_antes - len(df_sem_dup)
-        
-        if duplicadas_removidas > 0:
-            self.log(f"  🔄 Removidas {duplicadas_removidas} linhas duplicadas")
-        else:
-            self.log(f"  🔄 Nenhuma linha duplicada encontrada")
-        
-        return df_sem_dup
-    
-    def filtro_remover_vazias(self, df):
-        """Remover linhas vazias ou com dados insuficientes"""
-        linhas_antes = len(df)
-        
-        # Remove linhas onde TODAS as colunas são nulas
-        df_sem_vazias = df.dropna(how='all')
-        
-        # Remove linhas onde a MAIORIA das colunas são nulas (>50%)
-        threshold = len(df.columns) // 2  # pelo menos 50% dos dados devem estar presentes
-        df_sem_vazias = df_sem_vazias.dropna(thresh=threshold)
-        
-        vazias_removidas = linhas_antes - len(df_sem_vazias)
-        
-        if vazias_removidas > 0:
-            self.log(f"  🗑️  Removidas {vazias_removidas} linhas vazias/incompletas")
-        else:
-            self.log(f"  🗑️  Nenhuma linha vazia encontrada")
-        
-        return df_sem_vazias
-    
-    def filtro_por_valor_minimo(self, df):
-        """Filtrar por valor mínimo com normalização de dados"""
-        try:
-            valor_min = float(self.valor_minimo.get())
-            coluna_filtro = self.coluna_valor_selecionada.get()
-            
-            if not coluna_filtro or coluna_filtro not in df.columns:
-                self.log(f"  ⚠️ Coluna '{coluna_filtro}' não disponível - Filtro ignorado")
-                return df
-            
-            linhas_antes = len(df)
-            
-            # NORMALIZAÇÃO: Converter coluna para numérico limpando strings de moeda/formatos BR
-            def limpar_valor(x):
-                if isinstance(x, str):
-                    x = x.replace('R$', '').replace('.', '').replace(',', '.').strip()
-                try:
-                    return float(x)
-                except:
-                    return 0.0
-
-            df_temp = df.copy()
-            df_temp[coluna_filtro] = df_temp[coluna_filtro].apply(limpar_valor)
-            
-            df_filtrado = df[df_temp[coluna_filtro] >= valor_min]
-            linhas_removidas = linhas_antes - len(df_filtrado)
-            
-            if linhas_removidas > 0:
-                self.log(f"  📊 Removidas {linhas_removidas} linhas com {coluna_filtro} < {valor_min}")
-            else:
-                self.log(f"  📊 Nenhuma linha removida (todas >= {valor_min})")
-            
-            return df_filtrado
-            
-        except ValueError:
-            self.log(f"  ⚠️ Valor mínimo inválido: '{self.valor_minimo.get()}' - Filtro ignorado")
-            return df
-    
-    def filtro_por_texto(self, df):
-        """Filtrar por texto/SKU/Categoria de forma otimizada"""
-        texto = self.texto_filtro.get().strip()
-        
-        if not texto:
-            self.log(f"  ⚠️ Texto de filtro vazio - Filtro ignorado")
-            return df
-        
-        linhas_antes = len(df)
-        
-        # OTIMIZAÇÃO: Buscar apenas em colunas de texto (object) para evitar cast desnecessário
-        colunas_texto = df.select_dtypes(include=['object']).columns
-        
-        if len(colunas_texto) == 0:
-            self.log(f"  ⚠️ Nenhuma coluna de texto encontrada para filtrar")
-            return df
-
-        # Criar máscara booleana vetorizada
-        mascara = pd.Series(False, index=df.index)
-        for col in colunas_texto:
-            mascara |= df[col].astype(str).str.contains(texto, case=False, na=False)
-        
-        df_filtrado = df[mascara]
-        linhas_removidas = linhas_antes - len(df_filtrado)
-        
-        if linhas_removidas > 0:
-            self.log(f"  🔍 Filtradas {len(df_filtrado)} linhas contendo '{texto}' ({linhas_removidas} removidas)")
-        else:
-            self.log(f"  🔍 Nenhuma linha contém '{texto}' - DataFrame vazio!")
-        
-        return df_filtrado
+    # Métodos de processamento removidos (Delegado para ADCLogic)
     
     def salvar_planilha(self, df, caminho_saida):
         """Salvar planilha processada"""
@@ -983,39 +840,24 @@ class LimpadorPlanilhaGUI:
         p = self.get_preset_atual()
         return p.get("tipo", "limpeza") if p else "limpeza"
 
-    def processar_resumo_pedidos(self, df):
+    def processar_resumo_pedidos(self, resultado_dict):
         """Calcula e exibe o resumo dos pedidos com Dashboard"""
         try:
-            self.set_progress(30, "Calculando métricas...")
-            
-            col_pedidos = 1  # B
-            col_quantidade = 25 # Z
-            col_preco = 26 # AA
-            
-            def clean_numeric(val):
-                if pd.isna(val): return 0.0
-                if isinstance(val, (int, float)): return float(val)
-                s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
-                try: return float(s)
-                except: return 0.0
-
-            df_calc = df.copy()
-            pedidos_unicos = df.iloc[:, col_pedidos].nunique()
-            df_calc['qty_clean'] = df.iloc[:, col_quantidade].apply(clean_numeric)
-            total_itens = int(df_calc['qty_clean'].sum())
-            df_calc['price_clean'] = df.iloc[:, col_preco].apply(clean_numeric)
-            df_calc['total_row'] = df_calc['qty_clean'] * df_calc['price_clean']
-            valor_total = df_calc['total_row'].sum()
-            
             self.set_progress(70, "Gerando dashboard...")
             
+            total_itens = resultado_dict["total_itens"]
+            pedidos_unicos = resultado_dict["total_pedidos"]
+            valor_total = resultado_dict["valor_total"]
+            df_calc = resultado_dict.get("df")
+
             # Exibição no Log
             self.log("-" * 40)
-            self.log(f"� ITENS: {total_itens} | 🎫 PEDIDOS: {pedidos_unicos}")
+            self.log(f"📦 ITENS: {total_itens} | 🎫 PEDIDOS: {pedidos_unicos}")
             self.log(f"💰 VALOR TOTAL: R$ {valor_total:,.2f}")
             self.log("-" * 40)
             
-            self.exibir_dashboard(df_calc, total_itens, pedidos_unicos, valor_total)
+            if df_calc is not None:
+                self.exibir_dashboard(df_calc, total_itens, pedidos_unicos, valor_total)
             self.set_progress(100, "Resumo concluído!")
 
         except Exception as e:

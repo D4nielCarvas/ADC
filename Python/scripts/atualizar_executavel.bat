@@ -40,7 +40,7 @@ if %errorlevel% neq 0 (
 
 echo ========================================
 echo  ✓ PROCESSO CONCLUÍDO!
-echo  O executáveis atualizados estão em dist/main
+echo  Os executáveis atualizados estão em dist/main
 echo ========================================
 echo.
 pause
