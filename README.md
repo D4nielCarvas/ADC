@@ -1,4 +1,4 @@
-[README.md](https://github.com/user-attachments/files/24801136/README.md)
+[README.md](https://github.com/user-attachments/files/24805760/README.md)
 # 🧹 ADC - Advanced Data Cleaner
 
 Aplicação profissional com Interface Gráfica (GUI) para limpeza, filtragem e análise de planilhas de produtos (**Itens Mais Vendidos por SKU**).
@@ -19,13 +19,22 @@ Aplicação profissional com Interface Gráfica (GUI) para limpeza, filtragem e 
 ## 📁 Estrutura do Projeto
 
 ```text
-ADC/
-├── scripts/            # Automação e builds (.bat)
-├── src/                # Código-fonte Python
-│   ├── main.py         # Arquivo principal (GUI)
-│   └── config.json     # Definições de Presets
-├── CHANGELOG.md        # Histórico de versões
-└── README.md           # Esta documentação
+Projeto/
+├── config/                  # Configurações do sistema
+│   └── settings.json
+├── src/                     # Código fonte
+│   ├── main.py              # Ponto de entrada
+│   ├── core/                # Lógica de negócios (ADCLogic)
+│   ├── gui/                 # Interface Gráfica
+│   │   ├── components/      # Componentes reutilizáveis
+│   │   ├── pages/           # Páginas (Limpeza, Dashboard, Config)
+│   │   ├── main_window.py   # Janela Principal
+│   │   └── styles.py        # Temas e Estilos
+│   └── utils/               # Utilitários
+├── build/                   # Arquivos de build (PyInstaller)
+├── dist/                    # Executável final
+├── scripts/                 # Scripts auxiliares
+└── requirements.txt         # Dependências
 ```
 
 ## 🛠️ Requisitos e Instalação
@@ -35,7 +44,7 @@ ADC/
 
 ### Instalação das Dependências
 ```bash
-pip install pandas openpyxl xlrd matplotlib
+pip install -r requirements.txt
 ```
 
 ## 💻 Como Usar
