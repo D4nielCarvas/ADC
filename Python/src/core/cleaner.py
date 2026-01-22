@@ -9,37 +9,54 @@ class ADCLogic:
         self.cache_excel = {}
 
     def carregar_presets(self):
-        """Carregar presets do arquivo config.json"""
-        # Tenta achar o config.json relativo a este arquivo
-        paths_to_try = [
-            os.path.join(os.path.dirname(__file__), "config.json"),
-            os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "config.json")
+        """Carregar presets do arquivo config/settings.json"""
+        # Estratégia de busca de arquivo robusta
+        caminhos_possiveis = [
+            # 1. Desenvolvimento: ../../config/settings.json (relativo a src/core/cleaner.py)
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "settings.json"),
+            # 2. Executável (Dist): pasta config ao lado do exe
+            os.path.join(os.getcwd(), "config", "settings.json"),
+            # 3. Fallback
+            "config/settings.json"
         ]
         
-        for caminho in paths_to_try:
+        for caminho in caminhos_possiveis:
             if os.path.exists(caminho):
                 try:
                     with open(caminho, 'r', encoding='utf-8') as f:
                         return json.load(f).get("presets", [])
-                except Exception:
+                except Exception as e:
+                    print(f"Erro ao ler config {caminho}: {e}")
                     continue
         return []
 
     def salvar_presets(self, presets):
-        """Salva a lista atual de presets no config.json"""
+        """Salva a lista atual de presets no settings.json"""
         self.presets = presets
+        
+        # Tenta salvar no mesmo local que carregou ou no padrão dev
+        caminho = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "settings.json")
+        if not os.path.exists(os.path.dirname(caminho)):
+             # Se não existir (ex: rodando do exe), tenta no cwd
+             caminho = os.path.join(os.getcwd(), "config", "settings.json")
+        
         try:
-            caminho = os.path.join(os.path.dirname(__file__), "config.json")
+            os.makedirs(os.path.dirname(caminho), exist_ok=True)
             with open(caminho, 'w', encoding='utf-8') as f:
                 json.dump({"presets": self.presets}, f, indent=4, ensure_ascii=False)
             return True, "Presets salvos com sucesso."
         except Exception as e:
             return False, str(e)
 
-    def carregar_planilha(self, caminho, aba, log_callback=None):
+    def carregar_planilha(self, caminho, aba=None, log_callback=None):
+        """Carrega a planilha. Se aba for None, retorna objeto ExcelFile ou primeira aba."""
         try:
-            if log_callback: log_callback(f"Tentando carregar aba: {aba}")
+            if log_callback and aba: log_callback(f"Tentando carregar aba: {aba}")
             
+            if aba is None:
+                # Retorna apenas o objeto para listar abas ou carregar default depois
+                return pd.ExcelFile(caminho, engine='openpyxl' if not caminho.lower().endswith('.xls') else 'xlrd')
+
             try:
                 if caminho.lower().endswith('.xls'):
                     df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd')
@@ -54,6 +71,21 @@ class ADCLogic:
             return df
         except Exception as e:
             raise Exception(f"Erro ao carregar planilha: {e}")
+
+    def listar_abas(self, caminho, log_callback=None):
+        try:
+            xl = self.carregar_planilha(caminho) # Retorna ExcelFile neste caso se implementado ou reusa logica
+            # Na implementação original do pandas read_excel pode ler tudo, mas ExcelFile é melhor pra abas
+            if isinstance(xl, pd.ExcelFile):
+                 return xl.sheet_names
+            # Se a func carregar_planilha retornar df direto qdo aba é None, ajustamos:
+            # Aqui vamos instanciar direto para garantir
+            engine = 'xlrd' if caminho.lower().endswith('.xls') else 'openpyxl'
+            xl = pd.ExcelFile(caminho, engine=engine)
+            return xl.sheet_names
+        except Exception as e:
+             if log_callback: log_callback(f"Erro ao listar abas: {e}")
+             raise e
 
     def validar_arquivo_entrada(self, caminho, log_callback=None):
         if not os.path.exists(caminho):
@@ -123,8 +155,8 @@ class ADCLogic:
         if opcoes.get('remover_vazias'):
             linhas_antes = len(df)
             df = df.dropna(how='all')
-            threshold = len(df.columns) // 2
-            df = df.dropna(thresh=threshold)
+            # Limpeza agressiva apenas se muitos nas
+            # df = df.dropna(thresh=len(df.columns) // 2)
             if log_callback: log_callback(f"  🗑️ Vazias removidas: {linhas_antes - len(df)}")
 
         # Filtro 3: Filtrar por valor mínimo
@@ -206,8 +238,9 @@ class ADCLogic:
             col_preco = 26 # AA (index 26)
             
             # Validação Mínima
+            # Ajuste: se a planilha for pequena, não quebra, mas avisa
             if df.shape[1] <= col_preco:
-                 if log_callback: log_callback("⚠️ Planilha menor que o esperado para resumo completo (Z/AA). Tentando adaptar...")
+                 if log_callback: log_callback("⚠️ Planilha menor que o esperado para resumo completo (Z/AA).")
             
             def clean_numeric(val):
                 if pd.isna(val): return 0.0
@@ -227,7 +260,9 @@ class ADCLogic:
             
             if df.shape[1] > col_preco:
                 df['price_clean'] = df.iloc[:, col_preco].apply(clean_numeric)
-                df['total_row'] = df.get('qty_clean', 0) * df['price_clean']
+                # Ensure qty_clean exists
+                if 'qty_clean' not in df.columns: df['qty_clean'] = 0
+                df['total_row'] = df['qty_clean'] * df['price_clean']
                 resultado["valor_total"] = df['total_row'].sum()
             
             resultado["df"] = df

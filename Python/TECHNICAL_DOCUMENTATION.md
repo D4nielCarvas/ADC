@@ -3,7 +3,7 @@
 Este documento fornece uma visão técnica detalhada da arquitetura e do funcionamento interno do sistema ADC.
 
 ## 🏗️ Arquitetura Geral
-O sistema é construído inteiramente em **Python 3.8+**, utilizando uma abordagem de Programação Orientada a Objetos (POO). A interface é baseada em **Tkinter** com um "wrapper" de estilização moderna via `ttk`.
+O sistema é construído inteiramente em **Python 3.8+**, utilizando uma arquitetura modular. A interface é baseada em **Tkinter** com um "wrapper" de estilização moderna via `ttk`.
 
 ### Principais Bibliotecas
 - **Pandas**: Núcleo de processamento e manipulação de DataFrames.
@@ -14,15 +14,23 @@ O sistema é construído inteiramente em **Python 3.8+**, utilizando uma abordag
 
 ---
 
-## 📱 Arquitetura de Classes
-- **`LimpadorPlanilhaGUI`** (`src/main.py`): Gerencia a interface gráfica, eventos e exibição de dados. Delega o processamento pesado para a classe lógica.
-- **`ADCLogic`** (`src/core_logic.py`): Centraliza toda a regra de negócios, incluindo validação, carregamento, limpeza e filtros. Garante reutilização entre GUI e outros possíveis frontends.
+## 📱 Estrutura de Módulos (Refatorada)
 
-### 1. Inicialização e Estado (`__init__`)
-- Configura a janela raiz, variáveis de estado (`tk.StringVar`, `tk.BooleanVar`) e o cache dinâmico de arquivos Excel para evitar leituras repetitivas do disco.
+O projeto foi refatorado para separar responsabilidades:
 
-### 2. Sistema de Temas e UI (`configurar_estilos` & `criar_interface`)
-- Implementa um tema "Modern Dark" customizado.
+- **`src/main.py`**: Ponto de entrada leve. Apenas inicializa a `MainWindow`.
+- **`src/core/cleaner.py` (`ADCLogic`)**:  Centraliza toda a regra de negócios, incluindo validação, carregamento, limpeza e filtros. Garante reutilização entre GUI e outros possíveis frontends.
+- **`src/gui/`**: Contém toda a lógica de interface.
+    - **`main_window.py`**: Controlador principal, gerencia a Sidebar e a troca de páginas.
+    - **`styles.py`**: Definições de temas (Cores Catppuccin) e estilos TTK.
+    - **`pages/`**: Módulos independentes para cada tela (`cleaner.py`, `dashboard.py`, `config.py`).
+
+### 1. Inicialização e Estado
+- `MainWindow` instancia `ADCLogic` uma única vez e a injeta nas páginas.
+- Isso garante que o estado dos Presets e Caches seja compartilhado.
+
+### 2. Sistema de Temas e UI
+- Implementa um tema "Modern Dark" customizado em `styles.py`.
 - Utiliza uma **Sidebar** para navegação e um sistema de **Containers** (Frames) que são alternados via o método `mudar_pagina`, criando o efeito de multi-páginas.
 
 ---
@@ -33,15 +41,13 @@ O sistema é construído inteiramente em **Python 3.8+**, utilizando uma abordag
 Implementa um sistema de **Fallback Automático**:
 1. Tenta ler usando o motor preferencial (`openpyxl` para `.xlsx`, `xlrd` para `.xls`).
 2. Se falhar (devido a corrupção de cabeçalho ou formato não padrão), tenta o motor alternativo.
-3. Para arquivos `.xls`, utiliza a flag `ignore_workbook_corruption=True`.
 
 ### O Ciclo de Limpeza (`ADCLogic.processar_limpeza`)
 O processamento segue um pipeline linear dentro da classe lógica:
 1. **Validação**: Verifica se o arquivo existe e se os índices de colunas solicitados são válidos no DataFrame atual.
 2. **Deleção**: Remove as colunas baseadas nos índices (convertendo de base 1 para base 0).
 3. **Filtros Adicionais**:
-   - `dropna`: Remove linhas vazias com um limite de 50% de preenchimento.
-   - `drop_duplicates`: Elimina linhas idênticas.
+   - `dropna`: Remove linhas vazias e duplicadas.
    - **Filtro de Valor**: Utiliza a função `limpar_valor` para converter strings financeiras ("R$ 1.200,00") em floats comparáveis.
    - **Filtro de Texto**: Aplica busca vetorizada `str.contains(case=False)` em todas as colunas do tipo objeto.
 
@@ -49,24 +55,21 @@ O processamento segue um pipeline linear dentro da classe lógica:
 
 ## 📊 Dashboard e Visualização
 
-### Integração Matplotlib-Tkinter (`exibir_dashboard`)
-- Cria figuras do Matplotlib (`plt.subplots`) com o fundo sincronizado ao tema escuro da GUI.
-- **Ranking Inteligente**:
-  - Na aba **Resumo**, o ranking é calculado por **frequência** (`groupby().size()`), ideal para ver recorrência de pedidos.
-  - No fallback, o ranking é por **volume** (`groupby().sum()`).
-- **Modo Cinema**: O método `expandir_dashboard` transfere a referência da figura para uma nova janela `Toplevel` em tela cheia.
+### Integração Matplotlib-Tkinter (`DashboardPage`)
+- A geração de resumos é feita em thread separada para não travar a UI.
+- Os dados são processados em `ADCLogic.gerar_resumo` e retornados para a GUI apenas para exibição.
 
 ---
 
 ## 💾 Persistência e Configurações
-- **`config.json`**: Armazena os presets. O sistema utiliza `json.dump` e `json.load` para garantir que as regras de limpeza sejam salvas permanentemente.
+- **`config/settings.json`**: Armazena os presets. O sistema utiliza `json.dump` e `json.load` para garantir que as regras de limpeza sejam salvas permanentemente.
 - **Presets**: Estrutura flexível que define quais colunas devem ser deletadas e quais filtros devem ser ativados por padrão.
 
 ---
 
 ## 🚀 Concorrência e UX
-- **Threading**: O método `iniciar_processamento` lança a lógica pesada em uma thread separada.
-- **Thread Safety**: Todas as atualizações de interface de dentro da thread (Logs, Barra de Progresso) são enviadas via `self.root.after()` para garantir que o Tkinter não trave ou apresente comportamentos erráticos.
+- **Threading**: Operações de I/O (leitura de Excel) e processamento pesado são sempre executadas em threads.
+- **Thread Safety**: Callbacks de atualização de UI (`log_callback`, `set_progress`) usam `root.after` ou métodos seguros do Tkinter.
 
 ---
 **Desenvolvido por D4nielCarvas**
