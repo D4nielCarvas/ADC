@@ -1,16 +1,101 @@
+# -*- coding: utf-8 -*-
+"""
+ADC Core Logic Module
+
+This module contains the core business logic for the Advanced Data Cleaner (ADC) application.
+It handles Excel file loading, data cleaning, filtering, and summary generation for e-commerce
+product spreadsheets.
+
+Classes:
+    ADCLogic: Main class containing all data processing logic
+"""
 import pandas as pd
 import os
 import json
 from datetime import datetime
 
 class ADCLogic:
+    """
+    Core business logic for ADC (Advanced Data Cleaner).
+    
+    This class handles all data processing operations including:
+    - Loading and parsing Excel files (.xlsx and .xls)
+    - Managing cleaning presets
+    - Applying filters and transformations
+    - Generating statistical summaries
+    
+    Attributes:
+        presets (list): List of cleaning preset configurations
+        cache_excel (dict): Cache for loaded Excel files
+    """
+    
     def __init__(self):
+        """Initialize ADCLogic with presets loaded from configuration file."""
         self.presets = self.carregar_presets()
         self.cache_excel = {}
+    
+    @staticmethod
+    def limpar_valor(x):
+        """
+        Clean and convert Brazilian currency/numeric strings to float.
+        
+        Handles formats like:
+        - "R$ 1.200,50" -> 1200.50
+        - "1.200,50" -> 1200.50
+        - "1200.50" -> 1200.50
+        
+        Args:
+            x: Value to clean (str, int, or float)
+            
+        Returns:
+            float: Cleaned numeric value, or 0.0 if conversion fails
+        """
+        if isinstance(x, str):
+            # Remove currency symbol, thousand separators (.), and replace decimal comma with dot
+            x = x.replace('R$', '').replace('.', '').replace(',', '.').strip()
+        try:
+            return float(x)
+        except (ValueError, TypeError):
+            return 0.0
+    
+    @staticmethod
+    def clean_numeric(val):
+        """
+        Clean numeric values from DataFrame cells.
+        
+        Similar to limpar_valor but handles pandas NA values explicitly.
+        
+        Args:
+            val: Value to clean (can be NA, str, int, or float)
+            
+        Returns:
+            float: Cleaned numeric value, or 0.0 if conversion fails
+        """
+        if pd.isna(val):
+            return 0.0
+        if isinstance(val, (int, float)):
+            return float(val)
+        
+        # Handle string values
+        s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
+        try:
+            return float(s)
+        except (ValueError, TypeError):
+            return 0.0
 
     def carregar_presets(self):
-        """Carregar presets do arquivo config/settings.json"""
-        # Estratégia de busca de arquivo robusta
+        """
+        Load cleaning presets from config/settings.json file.
+        
+        Tries multiple paths to find the configuration file:
+        1. Development path (relative to source file)
+        2. Executable distribution path
+        3. Fallback path
+        
+        Returns:
+            list: List of preset dictionaries, empty list if file not found
+        """
+        # Estrategia de busca de arquivo robusta
         caminhos_possiveis = [
             # 1. Desenvolvimento: ../../config/settings.json (relativo a src/core/cleaner.py)
             os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "settings.json"),
@@ -31,7 +116,15 @@ class ADCLogic:
         return []
 
     def salvar_presets(self, presets):
-        """Salva a lista atual de presets no settings.json"""
+        """
+        Save presets list to settings.json file.
+        
+        Args:
+            presets (list): List of preset dictionaries to save
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
         self.presets = presets
         
         # Tenta salvar no mesmo local que carregou ou no padrão dev
@@ -49,37 +142,111 @@ class ADCLogic:
             return False, str(e)
 
     def carregar_planilha(self, caminho, aba=None, log_callback=None):
-        """Carrega a planilha. Se aba for None, retorna objeto ExcelFile ou primeira aba."""
+        """
+        Load Excel spreadsheet with robust error handling.
+        
+        Features:
+        - Automatic engine selection (.xls vs .xlsx)
+        - Fallback to alternate engine on failure
+        - Empty sheet name handling (loads first sheet)
+        
+        Args:
+            caminho (str): Path to Excel file
+            aba (str, optional): Sheet name. None returns ExcelFile object, "" loads first sheet
+            log_callback (callable, optional): Callback function for logging
+            
+        Returns:
+            pd.DataFrame or pd.ExcelFile: Loaded data or ExcelFile object
+            
+        Raises:
+            Exception: If file cannot be loaded with any engine
+        """
         try:
             if log_callback and aba: log_callback(f"Tentando carregar aba: {aba}")
             
-            if aba is None:
-                # Retorna apenas o objeto para listar abas ou carregar default depois
-                return pd.ExcelFile(caminho, engine='openpyxl' if not caminho.lower().endswith('.xls') else 'xlrd')
+            # Determine engine usage
+            engine = 'xlrd' if caminho.lower().endswith('.xls') else 'openpyxl'
 
+            if aba is None:
+                # Retorna apenas o objeto para listar abas
+                # Try multiple engines for better compatibility
+                for eng in [engine, 'openpyxl', 'xlrd', None]:
+                    try:
+                        return pd.ExcelFile(caminho, engine=eng)
+                    except:
+                        continue
+                raise Exception("Nao foi possivel abrir o arquivo com nenhum engine disponivel")
+            
+            # FIX: Tratamento para aba vazia (string vazia)
+            if aba == "":
+                if log_callback: log_callback("[WARNING] Nenhuma aba especificada. Carregando a primeira disponivel.")
+                # Try to get sheet names with fallback engines
+                xl_file = None
+                for eng in [engine, 'openpyxl', 'xlrd', None]:
+                    try:
+                        xl_file = pd.ExcelFile(caminho, engine=eng)
+                        aba = xl_file.sheet_names[0]
+                        if log_callback: log_callback(f"[OK] Primeira aba identificada: {aba} (engine: {eng})")
+                        break
+                    except:
+                        continue
+                
+                if xl_file is None or not aba:
+                    raise Exception("Nao foi possivel abrir o arquivo para listar abas")
+
+            # Try primary engine first
             try:
-                if caminho.lower().endswith('.xls'):
-                    df = pd.read_excel(caminho, sheet_name=aba, engine='xlrd')
-                else:
-                    df = pd.read_excel(caminho, sheet_name=aba, engine='openpyxl')
-            except Exception:
-                # Retry logic
-                engine_alt = 'openpyxl' if caminho.lower().endswith('.xls') else 'xlrd'
-                if log_callback: log_callback(f"⚠️ Motor primário falhou. Tentando {engine_alt}...")
-                df = pd.read_excel(caminho, sheet_name=aba, engine=engine_alt)
+                df = pd.read_excel(caminho, sheet_name=aba, engine=engine)
+                if log_callback: log_callback(f"[OK] Planilha carregada com engine {engine}")
+                return df
+            except Exception as e1:
+                if log_callback: log_callback(f"[WARNING] Engine {engine} falhou: {str(e1)[:100]}")
+                
+                # Try alternate engine
+                engine_alt = 'openpyxl' if engine == 'xlrd' else 'xlrd'
+                try:
+                    df = pd.read_excel(caminho, sheet_name=aba, engine=engine_alt)
+                    if log_callback: log_callback(f"[OK] Planilha carregada com engine alternativo {engine_alt}")
+                    return df
+                except Exception as e2:
+                    if log_callback: log_callback(f"[WARNING] Engine {engine_alt} tambem falhou: {str(e2)[:100]}")
+                    
+                    # Last resort: try without specifying engine (let pandas decide)
+                    try:
+                        df = pd.read_excel(caminho, sheet_name=aba)
+                        if log_callback: log_callback("[OK] Planilha carregada com engine automatico")
+                        return df
+                    except Exception as e3:
+                        # All methods failed, raise detailed error
+                        error_msg = f"Falha ao carregar planilha com todos os metodos:\n"
+                        error_msg += f"  - {engine}: {str(e1)[:80]}\n"
+                        error_msg += f"  - {engine_alt}: {str(e2)[:80]}\n"
+                        error_msg += f"  - Auto: {str(e3)[:80]}"
+                        raise Exception(error_msg)
             
             return df
         except Exception as e:
             raise Exception(f"Erro ao carregar planilha: {e}")
 
     def listar_abas(self, caminho, log_callback=None):
+        """
+        List all sheet names in an Excel file.
+        
+        Args:
+            caminho (str): Path to Excel file
+            log_callback (callable, optional): Callback function for logging
+            
+        Returns:
+            list: List of sheet names
+            
+        Raises:
+            Exception: If file cannot be read
+        """
         try:
-            xl = self.carregar_planilha(caminho) # Retorna ExcelFile neste caso se implementado ou reusa logica
-            # Na implementação original do pandas read_excel pode ler tudo, mas ExcelFile é melhor pra abas
+            xl = self.carregar_planilha(caminho) # Retorna ExcelFile neste caso
             if isinstance(xl, pd.ExcelFile):
                  return xl.sheet_names
-            # Se a func carregar_planilha retornar df direto qdo aba é None, ajustamos:
-            # Aqui vamos instanciar direto para garantir
+            # Fallback
             engine = 'xlrd' if caminho.lower().endswith('.xls') else 'openpyxl'
             xl = pd.ExcelFile(caminho, engine=engine)
             return xl.sheet_names
@@ -88,32 +255,77 @@ class ADCLogic:
              raise e
 
     def validar_arquivo_entrada(self, caminho, log_callback=None):
+        """
+        Validate that input file exists and is a valid file.
+        
+        Args:
+            caminho (str): Path to file to validate
+            log_callback (callable, optional): Callback function for logging
+            
+        Returns:
+            bool: True if file is valid
+            
+        Raises:
+            FileNotFoundError: If file does not exist
+            ValueError: If path is not a file
+        """
         if not os.path.exists(caminho):
             raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
         if not os.path.isfile(caminho):
             raise ValueError(f"O caminho especificado não é um arquivo: {caminho}")
-        if log_callback: log_callback(f"✓ Arquivo de entrada encontrado: {os.path.basename(caminho)}")
+        if log_callback: log_callback(f"[OK] Arquivo de entrada encontrado: {os.path.basename(caminho)}")
         return True
 
     def validar_indices_colunas(self, df, indices, log_callback=None):
+        """
+        Validate that column indices are within DataFrame bounds.
+        
+        Args:
+            df (pd.DataFrame): DataFrame to validate against
+            indices (list): List of column indices to validate
+            log_callback (callable, optional): Callback function for logging
+            
+        Returns:
+            bool: True if all indices are valid
+            
+        Raises:
+            ValueError: If any index is out of bounds
+        """
         total_colunas = len(df.columns)
         indices_invalidos = [i for i in indices if i >= total_colunas or i < 0]
         
         if indices_invalidos:
             msg = f"Índices inválidos: {indices_invalidos}. A planilha tem {total_colunas} colunas (0-{total_colunas-1})"
-            if log_callback: log_callback(f"❌ {msg}")
+            if log_callback: log_callback(f"[ERROR] {msg}")
             raise ValueError(msg)
         
-        if log_callback: log_callback(f"✓ Índices validados: {indices}")
+        if log_callback: log_callback(f"[OK] Indices validados: {indices}")
         return True
 
     def processar_limpeza(self, caminho_entrada, aba, indices_deletar, opcoes_filtros=None, log_callback=None):
         """
-        opcoes_filtros: dict com chaves:
-          - remover_duplicadas (bool)
-          - remover_vazias (bool)
-          - filtro_valor (dict): { 'ativo': bool, 'minimo': float, 'coluna': str }
-          - filtro_texto (dict): { 'ativo': bool, 'texto': str }
+        Main data cleaning pipeline.
+        
+        Process flow:
+        1. Validate input file
+        2. Load spreadsheet
+        3. Validate column indices
+        4. Delete specified columns
+        5. Apply additional filters (if provided)
+        
+        Args:
+            caminho_entrada (str): Path to input Excel file
+            aba (str): Sheet name to process
+            indices_deletar (list): List of column indices to delete (0-based)
+            opcoes_filtros (dict, optional): Filter options with keys:
+                - remover_duplicadas (bool): Remove duplicate rows
+                - remover_vazias (bool): Remove empty rows
+                - filtro_valor (dict): {'ativo': bool, 'minimo': float, 'coluna': str}
+                - filtro_texto (dict): {'ativo': bool, 'texto': str}
+            log_callback (callable, optional): Callback function for logging
+            
+        Returns:
+            pd.DataFrame: Cleaned DataFrame
         """
         # 1. Validar Arquivo
         self.validar_arquivo_entrada(caminho_entrada, log_callback)
@@ -128,7 +340,7 @@ class ADCLogic:
         if log_callback: log_callback("Removendo colunas selecionadas...")
         validador_indices = [i for i in indices_deletar if i < len(df.columns)]
         colunas_deletar = [df.columns[i] for i in validador_indices]
-        if log_callback: log_callback(f"✓ Deletando colunas: {colunas_deletar}")
+        if log_callback: log_callback(f"[OK] Deletando colunas: {colunas_deletar}")
         
         df_limpo = df.drop(df.columns[validador_indices], axis=1)
         
@@ -172,29 +384,36 @@ class ADCLogic:
         return df
 
     def filtro_por_valor_minimo(self, df, valor_min, coluna_filtro, log_callback=None):
+        """
+        Filter DataFrame rows by minimum value in specified column.
+        
+        Args:
+            df (pd.DataFrame): DataFrame to filter
+            valor_min (float): Minimum value threshold
+            coluna_filtro (str): Column name to apply filter on
+            log_callback (callable, optional): Callback function for logging
+            
+        Returns:
+            pd.DataFrame: Filtered DataFrame
+        """
         try:
             if not coluna_filtro or coluna_filtro not in df.columns:
-                if log_callback: log_callback(f"  ⚠️ Coluna '{coluna_filtro}' não disponível para filtro de valor")
+                if log_callback: log_callback(f"  [WARNING] Coluna '{coluna_filtro}' nao disponivel para filtro de valor")
                 return df
             
-            def limpar_valor(x):
-                if isinstance(x, str):
-                    x = x.replace('R$', '').replace('.', '').replace(',', '.').strip()
-                try: return float(x)
-                except: return 0.0
-
+            # Use the static method instead of inline function
             df_temp = df.copy()
-            df_temp[coluna_filtro] = df_temp[coluna_filtro].apply(limpar_valor)
+            df_temp[coluna_filtro] = df_temp[coluna_filtro].apply(self.limpar_valor)
             
             df_filtrado = df[df_temp[coluna_filtro] >= valor_min]
             removidas = len(df) - len(df_filtrado)
             
             if log_callback and removidas > 0:
-                log_callback(f"  📊 Removidas {removidas} linhas com {coluna_filtro} < {valor_min}")
+                log_callback(f"  [INFO] Removidas {removidas} linhas com {coluna_filtro} < {valor_min}")
             
             return df_filtrado
         except Exception as e:
-            if log_callback: log_callback(f"  ⚠️ Erro no filtro de valor: {e}")
+            if log_callback: log_callback(f"  [WARNING] Erro no filtro de valor: {e}")
             return df
 
     def filtro_por_texto(self, df, texto, log_callback=None):
@@ -221,6 +440,23 @@ class ADCLogic:
         return caminho_saida
 
     def gerar_resumo(self, caminho_entrada, aba, log_callback=None):
+        """
+        Generate statistical summary from Excel spreadsheet.
+        
+        Calculates:
+        - Total unique orders
+        - Total items quantity
+        - Total sales value
+        
+        Args:
+            caminho_entrada (str): Path to Excel file
+            aba (str): Sheet name to process
+            log_callback (callable, optional): Callback function for logging
+            
+        Returns:
+            dict: Summary with keys 'total_itens', 'total_pedidos', 'valor_total', 'df'
+                  or 'erro' key if processing fails
+        """
         # Carregar
         df = self.carregar_planilha(caminho_entrada, aba, log_callback)
         
@@ -232,40 +468,48 @@ class ADCLogic:
         }
         
         try:
-            # Lógica robusta de resumo (Baseada no main.py)
-            col_pedidos = 1  # B (index 1)
-            col_quantidade = 25 # Z (index 25)
-            col_preco = 26 # AA (index 26)
+            # --- Configuracao de Colunas ---
+            # Conforme especificacao do usuario:
+            # Coluna B (indice 1) -> ID do Pedido (contar unicos)
+            # Coluna Z (indice 25) -> Quantidade de Itens (somar)
+            # Coluna AA (indice 26) -> Preco Unitario
+            # Formula: Valor Total = SOMA(Z * AA) para cada linha
             
-            # Validação Mínima
-            # Ajuste: se a planilha for pequena, não quebra, mas avisa
-            if df.shape[1] <= col_preco:
-                 if log_callback: log_callback("⚠️ Planilha menor que o esperado para resumo completo (Z/AA).")
+            COL_PEDIDOS_IDX = 1   # Coluna B
+            COL_QTD_IDX = 25      # Coluna Z
+            COL_PRECO_IDX = 26    # Coluna AA
             
-            def clean_numeric(val):
-                if pd.isna(val): return 0.0
-                if isinstance(val, (int, float)): return float(val)
-                s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
-                try: return float(s)
-                except: return 0.0
-
-            # Pedidos Únicos
-            if df.shape[1] > col_pedidos:
-                resultado["total_pedidos"] = df.iloc[:, col_pedidos].nunique()
+            # Validacao de limites
+            max_idx = max(COL_PEDIDOS_IDX, COL_QTD_IDX, COL_PRECO_IDX)
+            if df.shape[1] <= max_idx:
+                 msg = f"[WARNING] A planilha tem apenas {df.shape[1]} colunas, mas o resumo exige ate a coluna indice {max_idx} (AA)."
+                 if log_callback: log_callback(msg)
+                 # Retorna zerado mas com aviso, nao crasha
+                 resultado["erro"] = msg
+                 return resultado
             
-            # Totais
-            if df.shape[1] > col_quantidade:
-                df['qty_clean'] = df.iloc[:, col_quantidade].apply(clean_numeric)
-                resultado["total_itens"] = int(df['qty_clean'].sum())
+            # 1. PEDIDOS UNICOS - Coluna B (contar apenas numeros diferentes)
+            resultado["total_pedidos"] = df.iloc[:, COL_PEDIDOS_IDX].nunique()
             
-            if df.shape[1] > col_preco:
-                df['price_clean'] = df.iloc[:, col_preco].apply(clean_numeric)
-                # Ensure qty_clean exists
-                if 'qty_clean' not in df.columns: df['qty_clean'] = 0
-                df['total_row'] = df['qty_clean'] * df['price_clean']
-                resultado["valor_total"] = df['total_row'].sum()
+            # 2. TOTAL DE ITENS - Soma da Coluna Z
+            df['qty_clean'] = df.iloc[:, COL_QTD_IDX].apply(self.clean_numeric)
+            resultado["total_itens"] = int(df['qty_clean'].sum())
+            
+            # 3. VALOR TOTAL - Formula: SOMA(Z * AA)
+            # Limpar coluna AA (preco unitario)
+            df['price_clean'] = df.iloc[:, COL_PRECO_IDX].apply(self.clean_numeric)
+            
+            # Multiplicar quantidade (Z) * preco unitario (AA) para cada linha
+            df['valor_linha'] = df['qty_clean'] * df['price_clean']
+            
+            # Somar todos os valores
+            resultado["valor_total"] = df['valor_linha'].sum()
             
             resultado["df"] = df
+            
+            if log_callback:
+                log_callback(f"[OK] Resumo calculado: {resultado['total_pedidos']} pedidos, {resultado['total_itens']} itens, R$ {resultado['valor_total']:.2f}")
+            
             return resultado
             
         except Exception as e:

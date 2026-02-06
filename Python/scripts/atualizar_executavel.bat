@@ -30,8 +30,8 @@ echo.
 
 echo [3/3] Criando Executável (PyInstaller)...
 echo Aguarde, isso pode levar alguns minutos...
-:: Usando 'python -m PyInstaller' para ignorar bloqueio de Device Guard no .exe
-python -m PyInstaller --noconfirm --onedir --windowed --add-data "src/config.json;." "src/main.py"
+:: Usando main.spec que já tem a configuração correta
+pyinstaller --noconfirm main.spec
 if %errorlevel% neq 0 (
     echo ERRO: Falha ao gerar o executável.
     pause
@@ -40,7 +40,7 @@ if %errorlevel% neq 0 (
 
 echo ========================================
 echo  ✓ PROCESSO CONCLUÍDO!
-echo  Os executáveis atualizados estão em dist/main
+echo  O executável atualizado está em dist/ADC_Cleaner
 echo ========================================
 echo.
 pause

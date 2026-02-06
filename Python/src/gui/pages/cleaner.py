@@ -67,13 +67,13 @@ class CleanerPage(ttk.Frame):
         grid.pack(fill=tk.X)
         
         ttk.Label(grid, text="Preset de Configuração", style="Card.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ttk.Label(grid, text="Aba da Planilha", style="Card.TLabel").grid(row=0, column=1, sticky="w", pady=(0, 5), padx=20)
+        ttk.Label(grid, text="Aba da Planilha (Vazio = 1ª Aba)", style="Card.TLabel").grid(row=0, column=1, sticky="w", pady=(0, 5), padx=20)
         
         self.preset_combo = ttk.Combobox(grid, textvariable=self.nome_preset, values=[p["nome"] for p in self.logic.presets], state="readonly", width=30)
         self.preset_combo.grid(row=1, column=0, sticky="ew", ipady=3)
         self.preset_combo.bind("<<ComboboxSelected>>", self.aplicar_preset)
 
-        self.aba_combo = ttk.Combobox(grid, textvariable=self.aba_selecionada, state="readonly", width=20)
+        self.aba_combo = ttk.Combobox(grid, textvariable=self.aba_selecionada, width=20) # state normal to allow empty
         self.aba_combo.grid(row=1, column=1, sticky="ew", padx=20, ipady=3)
         # self.aba_combo.bind("<<ComboboxSelected>>", self.atualizar_colunas_aba) # Opcional se quisermos mostrar colunas
 
@@ -139,9 +139,9 @@ class CleanerPage(ttk.Frame):
                 self.lista_abas = self.logic.listar_abas(arquivo, log_callback=self.log)
                 self.aba_combo['values'] = self.lista_abas
                 if self.lista_abas: self.aba_selecionada.set(self.lista_abas[0])
-                self.log(f"✓ Arquivo carregado: {os.path.basename(arquivo)}")
+                self.log(f"[OK] Arquivo carregado: {os.path.basename(arquivo)}")
             except Exception as e:
-                self.log(f"❌ Erro: {e}")
+                self.log(f"[ERROR] Erro: {e}")
 
     def aplicar_preset(self, event=None):
         nome = self.nome_preset.get()
@@ -166,6 +166,10 @@ class CleanerPage(ttk.Frame):
         if not self.caminho_entrada.get():
              messagebox.showerror("Erro", "Selecione o arquivo!")
              return
+
+        if not self.aba_selecionada.get():
+            messagebox.showerror("Erro", "Selecione a aba da planilha!")
+            return
              
         self.processando = True
         self.btn_processar.config(state="disabled")
@@ -210,7 +214,7 @@ class CleanerPage(ttk.Frame):
             ])
             
         except Exception as e:
-            self.log(f"❌ Erro: {e}")
+            self.log(f"[ERROR] Erro: {e}")
             self.set_progress(0, "Erro")
         finally:
             self.processando = False

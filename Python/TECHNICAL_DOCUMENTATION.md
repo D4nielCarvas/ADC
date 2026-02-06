@@ -1,75 +1,152 @@
-# Documentação Técnica - ADC (Advanced Data Cleaner) v2.5 Pro
+# 📘 Documentação Técnica - ADC (Advanced Data Cleaner) v3.0
 
-Este documento fornece uma visão técnica detalhada da arquitetura e do funcionamento interno do sistema ADC.
-
-## 🏗️ Arquitetura Geral
-O sistema é construído inteiramente em **Python 3.8+**, utilizando uma arquitetura modular. A interface é baseada em **Tkinter** com um "wrapper" de estilização moderna via `ttk`.
-
-### Principais Bibliotecas
-- **Pandas**: Núcleo de processamento e manipulação de DataFrames.
-- **Tkinter**: Interface gráfica e gerenciamento de eventos.
-- **Matplotlib**: Geração de gráficos e dashboards.
-- **Openpyxl/xlrd**: Motores de leitura/escrita de arquivos Excel.
-- **Threading**: Utilizado para manter a interface fluida durante o processamento pesado.
+> **Versão:** 3.0 (Estável)  
+> **Data:** 06/02/2026  
+> **Desenvolvedor:** DanielCarvas (Mantido por Antigravity)
 
 ---
 
-## 📱 Estrutura de Módulos (Refatorada)
+## 🚀 Visão Geral do Projeto
 
-O projeto foi refatorado para separar responsabilidades:
+O **ADC (Advanced Data Cleaner)** é uma aplicação de desktop profissional desenvolvida para automação de limpeza, padronização e análise de planilhas de e-commerce (foco em Shopee/Marketplaces). O sistema remove tarefas manuais repetitivas, garantindo integridade de dados e fornecendo insights rápidos através de dashboards.
 
-- **`src/main.py`**: Ponto de entrada leve. Apenas inicializa a `MainWindow`.
-- **`src/core/cleaner.py` (`ADCLogic`)**:  Centraliza toda a regra de negócios, incluindo validação, carregamento, limpeza e filtros. Garante reutilização entre GUI e outros possíveis frontends.
-- **`src/gui/`**: Contém toda a lógica de interface.
-    - **`main_window.py`**: Controlador principal, gerencia a Sidebar e a troca de páginas.
-    - **`styles.py`**: Definições de temas (Cores Catppuccin) e estilos TTK.
-    - **`pages/`**: Módulos independentes para cada tela (`cleaner.py`, `dashboard.py`, `config.py`).
-
-### 1. Inicialização e Estado
-- `MainWindow` instancia `ADCLogic` uma única vez e a injeta nas páginas.
-- Isso garante que o estado dos Presets e Caches seja compartilhado.
-
-### 2. Sistema de Temas e UI
-- Implementa um tema "Modern Dark" customizado em `styles.py`.
-- Utiliza uma **Sidebar** para navegação e um sistema de **Containers** (Frames) que são alternados via o método `mudar_pagina`, criando o efeito de multi-páginas.
+### 🎯 Principais Capacidades
+1.  **Limpeza Inteligente**: Remove colunas inúteis, linhas vazias e duplicatas automaticamente baseada em presets.
+2.  **Dashboard Financeiro**: Analisa múltiplos arquivos simultaneamente para calcular itens vendidos, pedidos únicos e receita total.
+3.  **Compatibilidade Universal**: Sistema robusto de carregamento que suporta arquivos Excel modernos (`.xlsx`) e legados (`.xls`), mesmo com corrupções leves.
+4.  **Interface Moderna**: UI baseada em Tkinter com tema personalizado (Catppuccin), responsiva e com feedback visual em tempo real.
 
 ---
 
-## ⚙️ Lógica de Processamento de Dados
+## 🏗️ Arquitetura de Software
 
-### Carregamento Robusto (`carregar_planilha`)
-Implementa um sistema de **Fallback Automático**:
-1. Tenta ler usando o motor preferencial (`openpyxl` para `.xlsx`, `xlrd` para `.xls`).
-2. Se falhar (devido a corrupção de cabeçalho ou formato não padrão), tenta o motor alternativo.
+O projeto segue uma arquitetura modular inspirada no padrão **MVC (Model-View-Controller)**, separando rigidamente a lógica de negócios da interface gráfica.
 
-### O Ciclo de Limpeza (`ADCLogic.processar_limpeza`)
-O processamento segue um pipeline linear dentro da classe lógica:
-1. **Validação**: Verifica se o arquivo existe e se os índices de colunas solicitados são válidos no DataFrame atual.
-2. **Deleção**: Remove as colunas baseadas nos índices (convertendo de base 1 para base 0).
-3. **Filtros Adicionais**:
-   - `dropna`: Remove linhas vazias e duplicadas.
-   - **Filtro de Valor**: Utiliza a função `limpar_valor` para converter strings financeiras ("R$ 1.200,00") em floats comparáveis.
-   - **Filtro de Texto**: Aplica busca vetorizada `str.contains(case=False)` em todas as colunas do tipo objeto.
+### Diagrama de Camadas
+```mermaid
+graph TD
+    A[GUI Layer (View)] --> B[Controller/Pages]
+    B --> C[Core Logic (Model)]
+    C --> D[Data Persistence (JSON/Excel)]
+    
+    style A fill:#f9f,stroke:#333
+    style C fill:#bbf,stroke:#333
+```
 
----
-
-## 📊 Dashboard e Visualização
-
-### Integração Matplotlib-Tkinter (`DashboardPage`)
-- A geração de resumos é feita em thread separada para não travar a UI.
-- Os dados são processados em `ADCLogic.gerar_resumo` e retornados para a GUI apenas para exibição.
+1.  **Core Logic (`src/core`)**: Contém toda a inteligência do negócio (`ADCLogic`). Não depende de nenhuma biblioteca gráfica, permitindo fácil portabilidade ou uso via CLI/API.
+2.  **GUI (`src/gui`)**: Implementação visual usando `tkinter`. Gerencia eventos, threads e atualização de widgets.
+3.  **Config (`config/`)**: Persistência de preferências do usuário e presets de limpeza.
 
 ---
 
-## 💾 Persistência e Configurações
-- **`config/settings.json`**: Armazena os presets. O sistema utiliza `json.dump` e `json.load` para garantir que as regras de limpeza sejam salvas permanentemente.
-- **Presets**: Estrutura flexível que define quais colunas devem ser deletadas e quais filtros devem ser ativados por padrão.
+## 📂 Estrutura de Diretórios
+
+```
+C:\Projetos\Codigos\Python\
+├── config/                  # Arquivos de configuração (gerado automaticamente)
+│   └── settings.json        # Presets de limpeza e preferências
+├── scripts/                 # Scripts utilitários de build/manutenção
+│   └── atualizar_executavel.bat
+├── src/                     # Código fonte principal
+│   ├── core/                # Camada de Regra de Negócios
+│   │   └── cleaner.py       # CLASSE PRINCIPAL: ADCLogic
+│   ├── gui/                 # Camada de Interface Gráfica
+│   │   ├── assets/          # Ícones e Imagens (.ico, .png)
+│   │   ├── pages/           # Módulos das Telas (Componentes)
+│   │   │   ├── cleaner.py   # Lógica da tela de Limpeza
+│   │   │   ├── dashboard.py # Lógica do Dashboard Financeiro
+│   │   │   ├── config.py    # Tela de Configuração e Presets
+│   │   │   └── home.py      # Tela inicial
+│   │   ├── styles.py        # Definição de Temas e Cores
+│   │   └── main_window.py   # Janela Principal (Container de Navegação)
+│   └── main.py              # Ponto de Entrada (Entry Point)
+├── ADC.spec                 # Arquivo de especificação PyInstaller
+└── requirements.txt         # Dependências do Python
+```
 
 ---
 
-## 🚀 Concorrência e UX
-- **Threading**: Operações de I/O (leitura de Excel) e processamento pesado são sempre executadas em threads.
-- **Thread Safety**: Callbacks de atualização de UI (`log_callback`, `set_progress`) usam `root.after` ou métodos seguros do Tkinter.
+## 🧠 Núcleo Lógico (`src/core/cleaner.py`)
+
+A classe `ADCLogic` é o coração do sistema.
+
+### 1. Sistema de Carregamento Híbrido (`carregar_planilha`)
+Implementa uma estratégia de "Fallback em Tripla Camada" para garantir que o usuário consiga abrir qualquer planilha:
+1.  **Detecção de Extensão**: Escolhe o engine primário (`openpyxl` para `.xlsx`, `xlrd` para `.xls`).
+2.  **Tentativa Primária**: Tenta carregar com o engine ideal.
+3.  **Fallback Secundário**: Se falhar (devido a corrupção ou formato incorreto), tenta o engine alternativo.
+4.  **Fallback Automático**: Deixa o Pandas decidir o engine.
+5.  **Auto-Load**: Se nenhuma aba for especificada (`aba=""`), identifica e carrega automaticamente a primeira aba disponível iterando por todos os engines.
+
+### 2. Pipeline de Limpeza (`processar_limpeza`)
+Fluxo linear e determinístico:
+1.  **Validação**: Verifica existência do arquivo e integridade.
+2.  **Load**: Carrega DataFrame.
+3.  **Drop Columns**: Remove colunas por índice (mapeado da interface 1-based para 0-based).
+4.  **Filtros**:
+    -   `remover_duplicadas`: `df.drop_duplicates()`
+    -   `remover_vazias`: `df.dropna(how='all')`
+    -   `filtro_valor`: Normaliza strings de moeda ("R$ 1.200,50") para float e filtra.
+    -   `filtro_texto`: Busca case-insensitive em todas as colunas de texto.
+
+### 3. Motor de Cálculo de Dashboard (`gerar_resumo`)
+O sistema de cálculo financeiro foi padronizado para planilhas de vendas (Shopee):
+
+| Métrica | Fonte de Dados | Lógica |
+| :--- | :--- | :--- |
+| **Total de Pedidos** | Coluna B (Índice 1) | Contagem de valores únicos (`nunique`) para evitar duplicatas de itens no mesmo pedido. |
+| **Total de Itens** | Coluna Z (Índice 25) | Soma simples dos valores numéricos da coluna. |
+| **Valor Total** | Coluna Z * Coluna AA | Multiplica **Quantidade (Z)** por **Preço Unitário (AA)** linha a linha e soma o resultado. |
+
+> **Nota:** O sistema sanitiza dados numéricos (remove "R$", pontos e vírgulas) antes de qualquer cálculo matemático.
 
 ---
-**Desenvolvido por D4nielCarvas**
+
+## 🖥️ Interface Gráfica (`src/gui`)
+
+### Gerenciamento de Estado e Threads
+Para manter a interface responsiva durante processamento pesado (ex: ler 10 arquivos Excel):
+-   **Threading**: O processamento ocorre em uma `threading.Thread` separada (daemon=True).
+-   **Safe UI Updates**: A atualização da UI (Labels, ProgressBars) é feita via `root.after()` ou através de um sistema de callbacks seguro, evitando *"RuntimeError: main thread is not in main loop"*.
+
+### Dashboard Multiarquivo (`dashboard.py`)
+Recurso avançado recém-implementado:
+-   **Input**: Aceita N arquivos simultâneos.
+-   **Lógica de Combinação**:
+    -   **Pedidos**: Mantém um `Set` global de IDs de pedidos para garantir que o mesmo pedido em arquivos diferentes não seja contado duas vezes.
+    -   **Soma**: Acumula `total_itens` e `valor_total` de cada arquivo processado.
+    -   **Tratamento de Erro Individual**: Se 1 de 10 arquivos falhar, o sistema processa os outros 9 e relata o erro específico apenas do arquivo problemático.
+
+---
+
+## 🛠️ Tecnologias e Dependências
+
+| Componente | Tecnologia | Versão Mínima | Uso |
+| :--- | :--- | :--- | :--- |
+| **Runtime** | Python | 3.10+ | Linguagem base |
+| **Data Engine** | Pandas | 2.0+ | Manipulação de dados |
+| **Excel (Modern)** | Openpyxl | 3.1+ | Leitura/Escrita .xlsx |
+| **Excel (Legacy)** | Xlrd | 2.0.1 | Leitura .xls |
+| **GUI** | Tkinter | (Built-in) | Interface Gráfica |
+| **Plots** | Matplotlib | 3.7+ | (Opcional) Gráficos futuros |
+| **Build** | PyInstaller | 6.0+ | Compilação para .exe |
+
+---
+
+## 🔧 Guia de Manutenção e Build
+
+### Como rodar em desenvolvimento
+```powershell
+python src/main.py
+```
+
+### Como gerar novo executável
+Utilize o script automatizado que limpa arquivos temporários, constrói e organiza a pasta `dist`:
+```powershell
+scripts/atualizar_executavel.bat
+```
+O executável final estará em: `dist/ADC/ADC.exe`
+
+---
+
+> Documentação gerada automaticamente por **Antigravity**.
